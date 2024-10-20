@@ -67,8 +67,7 @@ class TEM(tf.keras.Model):
         if 'p' in self.par.infer_g_type:
             self.p2g_mu = [tf.keras.Sequential([Dense(2 * g_size, input_shape=(phase_size,), activation=tf.nn.elu,
                                                       name='p2g_mu_1_' + str(f), kernel_initializer=glorot_uniform),
-                                                Dense(g_size, name='p2g_mu_2_' + str(f),
-                                                      kernel_initializer=trunc_norm_p2g)]) for f, (g_size, phase_size)
+                                                LIFSpike(units=g_size, activation='relu', name='p2g_mu_2_' + str(f))]) for f, (g_size, phase_size)
                            in enumerate(zip(self.par.n_grids_all, self.par.n_phases_all))]
 
             self.p2g_logsig = [tf.keras.Sequential([Dense(2 * g_size, input_shape=(2,), activation=tf.nn.elu,
@@ -103,9 +102,18 @@ class TEM(tf.keras.Model):
         # inputs = model_utils.copy_tensor(inputs_)
         # Setup member variables and get dictionaries from input
         memories_dict, variable_dict = self.init_input(inputs)
+        #print("inputs", inputs) 
+        # 'x':shape=(75, 16, 45), 'x_': shape=(16, 12),'model_inputs__19:0' shape=(16, 12), 'model_inputs__20:0' shape=(16, 12), 'model_inputs__21:0' shape=(16, 12), 
+        #'model_inputs__22:0' shape=(16, 12)], 'x_two_hot': 'model_inputs__23:0' shape=(75, 16, 12), 'g': 'model_inputs__1:0' shape=(16, 120),
+        #'d': 'model_inputs_:0' shape=(75, 16, 4), 'hebb_mat':'model_inputs__2:0' shape=(16, 720, 720), 'hebb_mat_inv':'model_inputs__3:0' shape=(16, 720, 720), 
+        #'seq_i': 'model_inputs__16:0' shape=(16,), 's_visited':'model_inputs__7:0' shape=(16, 75), 'scalings': {'temp': 'model_inputs__15:0' shape=(), 
+        #'forget': 'model_inputs__8:0' shape=(), 'h_l': 'model_inputs__10:0' shape=(), 'p2g_use': 'model_inputs__13:0' shape=(), 'l_r': 'model_inputs__12:0' shape=(),
+        # 'g_cell_reg': 'model_inputs__9:0' shape=() , 'p_cell_reg': 'model_inputs__14:0' shape=(), 'iteration': 'model_inputs__11:0' shape=()},
+        # 'positions': 'model_inputs__4:0' shape=(75, 16), 'reward_val':'model_inputs__6:0' shape=(16,), 'reward_pos': 'model_inputs__5:0' shape=(16, 0)
 
         # Precompute transitions
         ta_mat = self.precomp_trans(inputs.d)
+        #print("ta_mat", ta_mat)
 
         # book-keeping
         g_t, x_t = inputs.g, inputs.x_
@@ -117,11 +125,13 @@ class TEM(tf.keras.Model):
             # using and appending to lists is slow with tf.range
             # tf.range version slower (+30%) than range version, though faster compilation (1000s to 80s for bptt=75)
             # tf.range version uses much less RAM
-
+            print("i",i)
             # single step
             g_t, x_t, variable_dict, memories_dict = self.step(inputs, g_t, x_t, variable_dict, memories_dict, i,
                                                                ta_mat.read(i))
 
+        #print("g_t2",g_t) #shape(env_num, g_num)
+        #print("x_t", x_t) #shape(env_num, params.s_size)
         # Now do full hebbian matrices update after BPTT truncation
         hebb_mat, hebb_mat_inv = self.final_hebbian(inputs.hebb_mat, inputs.hebb_mat_inv, memories_dict)
         print("################")
@@ -150,10 +160,13 @@ class TEM(tf.keras.Model):
         #print("seq_pos", seq_pos) #shape=(env_num,)
         # generative transition
         g_gen, g2g_all = self.gen_g(g_t, t_mat, seq_pos)
+        #print("g_t", g_t) #shape(env_num, g_num)
         #print("g_gen",g_gen) #shape(env_num, g_num)
 
         # infer hippocampus (p) and entorhinal (g)
         mem_inf = self.mem_step(memories_dict, 'inf', i + mem_offset)
+        #print("inputs.x",inputs.x) #shape=(75, env_num, params.s_size),
+        #print("x_t", x_t) #shape=(env_num, params.s_size_comp)
         g, p, x_s, p_x = self.inference(g2g_all, inputs.x[i], inputs.x_two_hot[i], x_t, mem_inf, inputs.d[i])
 
         # generate sensory
@@ -214,7 +227,7 @@ class TEM(tf.keras.Model):
 
         p_gt = self.gen_p(g_gen, memories)
         x_gt, x_gt_logits = self.f_x(p_gt)
-        print("x_gt",x_gt) #shape(env_num, params.s_size)
+        #print("x_gt",x_gt) #shape(env_num, params.s_size)
 
         x = model_utils.DotDict({'x_p': x_p,
                                  'x_g': x_g,
@@ -362,7 +375,7 @@ class TEM(tf.keras.Model):
             x_comp = self.MLP_c(x)
 
         # temporally filter
-        print("x_comp, x_t, d",x_comp, x_t, d)
+        #print("x_comp, x_t, d",x_comp, x_t, d)
         x_ = self.x2x_(x_comp, x_t, d)
         #print("X_",x_) #shape(env_num, params.s_size_comp)
         # normalise
@@ -408,7 +421,7 @@ class TEM(tf.keras.Model):
         """
 
         x_s = []
-        print("self.par.n_freq",self.par.n_freq)
+        #print("self.par.n_freq",self.par.n_freq)
         for f in range(self.par.n_freq):
             # get filtering parameter for each frequency
             # inverse sigmoid as initial parameters
@@ -416,7 +429,7 @@ class TEM(tf.keras.Model):
 
             # filter
             filtered = a * x_[f] + x * (1 - a) #shape(env_num, params.s_size_comp)
-            print("fil",filtered)
+            #print("fil",filtered) #shape(env_num, params.s_size_comp)
             if self.par.smooth_only_on_movement:
                 # only filter if actually moved
                 stay_still = tf.reduce_sum(d, axis=1, keepdims=True)
@@ -988,6 +1001,7 @@ def compute_losses(model_inputs, data, trainable_variables, par):
     lp_reg = 0.0
 
     xs = model_inputs.x
+    #print("xs",xs) #shape(params.seq_len, env_num, params.s_size)
     scalings = model_inputs.scalings
     s_visited = model_inputs.s_visited
     positions = model_inputs.positions

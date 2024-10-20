@@ -66,6 +66,7 @@ def train_step(model_, model_inputs_):
     with tf.GradientTape() as tape:
         print('start_model2')
         variables_, re_input_ = model_(model_inputs_, training=True)
+        #print("model_inputs_",model_inputs_)
         # collate inputs for model
         losses_ = tem.compute_losses(model_inputs_, variables_, model_.trainable_variables, params)
         print("loss",losses_)
@@ -111,7 +112,7 @@ for train_i in range(params.train_iters): #for train_i in range(params.train_ite
     #print("train_dict.inputs",train_dict.inputs)
     #print("train_dict.hebb",train_dict.hebb)
     inputs_tf = model_utils.inputs_2_tf(train_dict.inputs, train_dict.hebb, scalings, params.n_freq)
-
+    #print("inputs_tf", inputs_tf)
     model_start_time = time.time()
     if debug_data:
         continue

@@ -32,6 +32,8 @@ class LIFSpike(Layer): #(tf.keras.layers.Layer) not work. Why?
         
     def call(self, inputs):
         # pass the computation to the activation layer
+        #print("III",inputs)
+        
         return tf.matmul(inputs, self.w) + self.b
         #nsteps = inputs.shape[-1]
         #u   = tf.zeros(inputs.shape[:-1])

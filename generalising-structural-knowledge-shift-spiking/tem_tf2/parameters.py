@@ -20,7 +20,7 @@ def default_params(width=None, height=None, world_type=None, batch_size=None):
 
     params.batch_size = 16 if not batch_size else batch_size
     # seq_len - we truncate BPTT to sequences of this length
-    params.seq_len = 75  # 75  # 50
+    params.seq_len = 50  # 75  # 50
     params.max_states = 350
 
     # 'rectangle', 'hexagonal', 'family_tree', 'line_ti', 'wood2000', 'frank2000', 'grieves2016', 'sun2020', 'nieh2021'
@@ -38,7 +38,7 @@ def default_params(width=None, height=None, world_type=None, batch_size=None):
     # only save date from first X of batch
     params.n_envs_save = 6
     # num gradient updates between summaries
-    params.sum_int = 18000 #100
+    params.sum_int = 100 #100
     # num gradient updates between detailed accuracy summaries
     params.sum_int_inferences = 400 #400
     # number of gradient steps between saving data
@@ -49,7 +49,7 @@ def default_params(width=None, height=None, world_type=None, batch_size=None):
     # MODEL params
     params.infer_g_type = 'p'  # 'p', 'g_p'
     params.two_hot = True
-    params.s_size_comp = 12
+    params.s_size_comp = 10
 
     # numbers of variables for each frequency
     params.n_grids_all = [30, 30, 24, 18, 18] #[30, 30, 24, 18, 18]
@@ -80,7 +80,7 @@ def default_params(width=None, height=None, world_type=None, batch_size=None):
                                        combins_table(params.s_size_comp, 2), params.s_size_comp)
 
     # TRAINING params
-    params.train_iters = 12000 #2000000
+    params.train_iters = 120 #2000000
     params.train_on_visited_states_only = True
     params.learning_rate_max = 9.4e-4
     params.learning_rate_min = 8e-5
