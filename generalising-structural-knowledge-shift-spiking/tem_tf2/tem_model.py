@@ -57,43 +57,37 @@ class TEM(tf.keras.Model):
         self.g_init = None
 
         # MLP for transition weights
-        self.t_vec = tf.keras.Sequential([Dense(self.par.d_mixed_size, input_shape=(self.par.n_actions,),
-                                                activation=tf.tanh, kernel_initializer=glorot_uniform, name='t_vec_1',
-                                                use_bias=False), Dense(self.par.g_size ** 2, use_bias=False,
-                                                                       kernel_initializer=tf.zeros_initializer,
-                                                                       name='t_vec_2')])
+        self.t_vec = tf.keras.Sequential([LIFSpike(units=self.par.d_mixed_size, input_shape=(self.par.n_actions,),
+                                                activation=tf.tanh, name='t_vec_1'), 
+                                            LIFSpike(units=self.par.g_size ** 2, activation=tf.tanh, name='t_vec_2')])
 
         # p2g
         if 'p' in self.par.infer_g_type:
-            self.p2g_mu = [tf.keras.Sequential([Dense(2 * g_size, input_shape=(phase_size,), activation=tf.nn.elu,
-                                                      name='p2g_mu_1_' + str(f), kernel_initializer=glorot_uniform),
+            self.p2g_mu = [tf.keras.Sequential([LIFSpike(units=2 * g_size, input_shape=(phase_size,), activation=tf.nn.elu,
+                                                      name='p2g_mu_1_' + str(f)),
                                                 LIFSpike(units=g_size, activation='relu', name='p2g_mu_2_' + str(f))]) for f, (g_size, phase_size)
                            in enumerate(zip(self.par.n_grids_all, self.par.n_phases_all))]
 
-            self.p2g_logsig = [tf.keras.Sequential([Dense(2 * g_size, input_shape=(2,), activation=tf.nn.elu,
-                                                          kernel_initializer=glorot_uniform,
+            self.p2g_logsig = [tf.keras.Sequential([LIFSpike(units=2 * g_size, input_shape=(2,), activation=tf.nn.elu,
                                                           name='p2g_logsig_1_' + str(f)),
                                                     LIFSpike(units=g_size, activation='relu',name='p2g_logsig_2_' + str(f))]) for f, g_size in
                                enumerate(self.par.n_grids_all)]
 
         # g2g logsigs
-        self.g2g_logsig_inf = [tf.keras.Sequential([Dense(2 * g_size, input_shape=(g_size,), activation=tf.nn.elu,
-                                                          kernel_initializer=glorot_uniform,
+        self.g2g_logsig_inf = [tf.keras.Sequential([LIFSpike(units=2 * g_size, input_shape=(g_size,), activation=tf.nn.elu,
                                                           name='g2g_logsig_inf_1_' + str(f)),
                                                     LIFSpike(units=g_size, activation='relu',name='g2g_logsig_2_' + str(f))]) for f, g_size in
                                enumerate(self.par.n_grids_all)]
 
         # MLP for compressing sensory observation
         if not self.par.two_hot:
-            self.MLP_c = tf.keras.Sequential([Dense(self.par.s_size_comp_hidden, input_shape=(self.par.s_size,),
-                                                    activation=tf.nn.elu, kernel_initializer=glorot_uniform,
+            self.MLP_c = tf.keras.Sequential([LIFSpike(units=self.par.s_size_comp_hidden, input_shape=(self.par.s_size,),
+                                                    activation=tf.nn.elu, 
                                                     name='MLP_c_1'),
                                               LIFSpike(units=self.par.s_size_comp, activation='relu',name='MLP_c_2')
                                               ])
 
-        self.MLP_c_star = tf.keras.Sequential([Dense(self.par.s_size_comp_hidden, input_shape=(self.par.s_size_comp,),
-                                                     activation=tf.nn.elu, kernel_initializer=glorot_uniform,
-                                                     name='MLP_c_star_1'),
+        self.MLP_c_star = tf.keras.Sequential([LIFSpike(units=self.par.s_size_comp_hidden, activation='relu',name='MLP_c_star_1'),
                                                LIFSpike(units=self.par.s_size, activation='relu',name='MLP_c_star_2')])
 
     @model_utils.define_scope
@@ -205,6 +199,8 @@ class TEM(tf.keras.Model):
         """
         # get sensory input to hippocampus
         x2p, x_s, _, x_comp = self.x2p(x, x_, x_two_hot, d)
+        #print("x2p",x2p, "x", x) ##shape(env_num, p_num), #shape(env_num, params.s_size)
+
 
         # infer entorhinal
         g, p_x = self.infer_g(g2g_all, x2p, x, memories)
@@ -284,6 +280,7 @@ class TEM(tf.keras.Model):
         p_x = None
         mu, sigma = g2g_all
         #print("mu2",mu) #shape(env_num, g_num)
+        #print("mu_x2p",mu_x2p) #shape(env_num, p_num)
 
         # Inference - factorised posteriors
         if 'p' in self.par.infer_g_type:
@@ -335,8 +332,10 @@ class TEM(tf.keras.Model):
 
         mu_attractor_sensum_ = tf.split(mu_attractor_sensum, num_or_size_splits=self.par.n_phases_all, axis=1)
 
-        #print("mu_attractor_sensum_",mu_attractor_sensum_.shape)
-        
+        #print("mu_attractor_sensum_",mu_attractor_sensum_)
+        #for dd, xx in enumerate(mu_attractor_sensum_):
+            #print("f",dd, xx)
+            #print("F,x",f,x)
         mus = [self.p2g_mu[f](x) for f, x in enumerate(mu_attractor_sensum_)]
         #print("mus",mus)
         mu = self.activation(tf.concat(mus, axis=1), 'g')
