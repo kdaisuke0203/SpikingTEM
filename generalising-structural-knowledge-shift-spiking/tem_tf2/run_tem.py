@@ -60,7 +60,7 @@ if profile or debug:
     params.save_walk = 1
 
 
-@tf.function  # (experimental_compile=True)
+#@tf.function  # (experimental_compile=True)
 def train_step(model_, model_inputs_):
     print("train_step")
     # everything entering this function should already be a tensor!
@@ -81,7 +81,7 @@ def train_step(model_, model_inputs_):
     return variables_, re_input_, losses_
 
 
-@tf.function  # (experimental_compile=True)
+#@tf.function  # (experimental_compile=True)
 def test_step(model_, model_inputs_):
     variables_, re_input_ = model_(model_inputs_, training=False)
     return variables_, re_input_

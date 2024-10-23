@@ -37,13 +37,10 @@ class LIFSpike(Layer): #(tf.keras.layers.Layer) not work. Why?
         #self.mem = tf.Variable(name='mem',
                              #initial_value=mem_init(shape=(self.units, )),
                              #trainable=False)"""
-    #@tf.function
+    @tf.function
     def call(self, inputs):
-        #print("inputs", inputs)
-        
-        batch_size = tf.shape(inputs)[0]
         if self.prev_output is None:
-            self.prev_output = tf.zeros([16, self.units], dtype=inputs.dtype)
+            self.prev_output = tf.zeros([self.dense.units])
         # pass the computation to the activation layer
         #print("III",inputs)
         
@@ -52,17 +49,11 @@ class LIFSpike(Layer): #(tf.keras.layers.Layer) not work. Why?
         #return self.mem
         #self.mem = self.mem + tf.matmul(inputs, self.w) + self.b
         #current_output = tau * self.prev_output * (1 - o_t_n1) + tf.matmul(inputs, self.w) + self.b 
-        prev_binary_output = tf.where(self.prev_output > self.threshold, 1.0, 0.0)
+        #prev_binary_output = tf.where(self.prev_output > self.threshold, 1.0, 0.0)
         input_transformed = self.dense(inputs)
-        #print("input_transformed", input_transformed.shape[0])
-        print("self.prev_output", self.prev_output)
-        if input_transformed.shape[0] is None:
-            current_output = tau * input_transformed #+ self.prev_output
-        else:
-            current_output = tau * input_transformed #+ self.prev_output
-        #print("self.prev_output", self.prev_output)
+        current_output = tau * input_transformed #+ self.prev_output
         binary_output = tf.where(current_output > self.threshold, 1.0, 0.0)
-        #print("current_output", current_output)
+        print("current_output", current_output)
         self.prev_output = current_output
         #print("inputs", inputs.shape[-1])
         #for i in range(inputs.shape[-1]):
@@ -73,7 +64,6 @@ class LIFSpike(Layer): #(tf.keras.layers.Layer) not work. Why?
             #self.prev_output = tf.identity(current_output)
 
         return binary_output
-        #return current_output
         #nsteps = inputs.shape[-1]
         #u   = tf.zeros(inputs.shape[:-1])
         #out = tf.zeros(inputs.shape)
