@@ -10,7 +10,6 @@ import parameters
 
 import numpy as np
 import tensorflow as tf
-
 import glob
 import os
 import shutil
@@ -54,6 +53,8 @@ optimise = True
 debug = False
 profile = False
 tf.config.run_functions_eagerly(debug or debug_data or not params.graph_mode)
+#tf.config.experimental_run_functions_eagerly(True)
+#tf.config.run_functions_eagerly(True)
 if profile or debug:
     params.train_iters = 11
     params.save_walk = 1
@@ -88,6 +89,9 @@ def test_step(model_, model_inputs_):
 
 # initialise dictionary to contain environments and data info
 train_dict = data_utils.get_initial_data_dict(params)
+#for key in train_dict.keys():
+    #print("train_dit_key",key)
+#print("train_dict", train_dict)
 #print("train_dict.hebb",train_dict.hebb)
 
 msg = 'Training Started'
@@ -108,11 +112,21 @@ for train_i in range(params.train_iters): #for train_i in range(params.train_ite
     data_start_time = time.time()
     # collect batch-specific environment data
     train_dict = data_utils.data_step(train_dict, params)
+    #for key in train_dict.keys():
+        #print("train_dit_key",key)
     # convert all inputs to tensors - otherwise re-build graph every time
     #print("train_dict.inputs",train_dict.inputs)
+    for key in train_dict.inputs.keys():
+        print("train_dict.inputs_key",key)
     #print("train_dict.hebb",train_dict.hebb)
+    #print("train_dict.inputs.xs",train_dict.inputs.xs.shape) #(16, 45, params.seq_len)
+    #print("train_dict.inputs.gs",train_dict.inputs.gs.shape)
     inputs_tf = model_utils.inputs_2_tf(train_dict.inputs, train_dict.hebb, scalings, params.n_freq)
-    #print("inputs_tf", inputs_tf)
+    #print("inputs_tf", inputs_tf) #
+    for key in inputs_tf.keys():
+        print("inputs_tf",key)
+    #print("inputs_tf.g",inputs_tf.g)
+    #print("inputs_tf.x_two_hot",inputs_tf.positions)
     model_start_time = time.time()
     if debug_data:
         continue

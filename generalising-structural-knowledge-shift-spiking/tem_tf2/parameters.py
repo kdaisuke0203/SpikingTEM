@@ -20,7 +20,7 @@ def default_params(width=None, height=None, world_type=None, batch_size=None):
 
     params.batch_size = 16 if not batch_size else batch_size
     # seq_len - we truncate BPTT to sequences of this length
-    params.seq_len = 50  # 75  # 50
+    params.seq_len = 2  # 75 or 50, The smaller the value, the shorter the computation time.
     params.max_states = 350
 
     # 'rectangle', 'hexagonal', 'family_tree', 'line_ti', 'wood2000', 'frank2000', 'grieves2016', 'sun2020', 'nieh2021'
@@ -80,7 +80,7 @@ def default_params(width=None, height=None, world_type=None, batch_size=None):
                                        combins_table(params.s_size_comp, 2), params.s_size_comp)
 
     # TRAINING params
-    params.train_iters = 120 #2000000
+    params.train_iters = 10 #2000000
     params.train_on_visited_states_only = True
     params.learning_rate_max = 9.4e-4
     params.learning_rate_min = 8e-5

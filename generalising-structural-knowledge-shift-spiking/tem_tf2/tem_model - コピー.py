@@ -97,7 +97,7 @@ class TEM(tf.keras.Model):
         # Setup member variables and get dictionaries from input
         memories_dict, variable_dict = self.init_input(inputs)
         #print("inputs", inputs) 
-        # 'x':shape=(params.seq_len, 16, 45), 'x_': shape=(16, 12),'model_inputs__19:0' shape=(16, 12), 'model_inputs__20:0' shape=(16, 12), 'model_inputs__21:0' shape=(16, 12), 
+        # 'x':shape=(75, 16, 45), 'x_': shape=(16, 12),'model_inputs__19:0' shape=(16, 12), 'model_inputs__20:0' shape=(16, 12), 'model_inputs__21:0' shape=(16, 12), 
         #'model_inputs__22:0' shape=(16, 12)], 'x_two_hot': 'model_inputs__23:0' shape=(75, 16, 12), 'g': 'model_inputs__1:0' shape=(16, 120),
         #'d': 'model_inputs_:0' shape=(75, 16, 4), 'hebb_mat':'model_inputs__2:0' shape=(16, 720, 720), 'hebb_mat_inv':'model_inputs__3:0' shape=(16, 720, 720), 
         #'seq_i': 'model_inputs__16:0' shape=(16,), 's_visited':'model_inputs__7:0' shape=(16, 75), 'scalings': {'temp': 'model_inputs__15:0' shape=(), 
@@ -162,7 +162,6 @@ class TEM(tf.keras.Model):
         #print("inputs.x",inputs.x) #shape=(75, env_num, params.s_size),
         #print("x_t", x_t) #shape=(env_num, params.s_size_comp)
         g, p, x_s, p_x = self.inference(g2g_all, inputs.x[i], inputs.x_two_hot[i], x_t, mem_inf, inputs.d[i])
-        #g, p, x_s, p_x = self.inference(g2g_all, inputs.x, inputs.x_two_hot, x_t, mem_inf, inputs.d)
 
         # generate sensory
         mem_gen = self.mem_step(memories_dict, 'gen', i + mem_offset)
@@ -205,7 +204,6 @@ class TEM(tf.keras.Model):
 
         # infer entorhinal
         g, p_x = self.infer_g(g2g_all, x2p, x, memories)
-        print("g", g)
 
         # infer hippocampus
         p = self.infer_p(x2p, g)
@@ -381,13 +379,11 @@ class TEM(tf.keras.Model):
         #print("X_",x_) #shape(env_num, params.s_size_comp)
         # normalise
         x_normed = self.f_n(x_)
-        #print("x_normed",x_normed)
         # tile to make same size as hippocampus
         x_2p = self.x_2p(x_normed) #shape=(env_num, p_num)
         #print("x_2p",x_2p) #shape(env_num, p_num)
 
         return x_2p, x_, tf.concat(x_normed, axis=1), x_comp
-        #return x_2p, x_, tf.concat(x_normed, axis=2), x_comp
 
     @model_utils.define_scope
     def g2p(self, g):
@@ -449,19 +445,11 @@ class TEM(tf.keras.Model):
         :param x_: temporally filtered data
         :return:
         """
-        #print("x_",x_) #shape(step, env_num, params.s_size_comp)
-        #print("tf.sigmoid(self.w_p[f]) * x_[f]",tf.sigmoid(self.w_p[1]) * x_[1])
         # scale by w_p and tile to have appropriate place cell size (same as W_tile)
         mus = [tf.tile(tf.sigmoid(self.w_p[f]) * x_[f], (1, self.par.n_phases_all[f])) for f in
                range(self.par.n_freq)]
-        #mus = [tf.tile(tf.sigmoid(self.w_p[f]) * x_[f], (1, 1, self.par.n_phases_all[f])) for f in
-               #range(self.par.n_freq)]
-
-        #print("mus", mus)
 
         mu = tf.concat(mus, 1)
-        #mu = tf.concat(mus, 2)
-        print("mu", mu)
 
         return mu
 

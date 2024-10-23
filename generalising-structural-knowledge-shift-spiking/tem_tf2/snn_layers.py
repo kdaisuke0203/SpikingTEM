@@ -4,21 +4,23 @@ from tensorflow.keras.layers import Layer
 dt = 5
 a = 0.25
 aa = 0.5  
-Vth = 0.2
-tau = 0.25
+tau = 0.2
 
 
 class LIFSpike(Layer): #(tf.keras.layers.Layer) not work. Why?
     # add an activation paramter
-    def __init__(self, units=32, activation=None, name=None):
-        super(LIFSpike, self).__init__()
+    def __init__(self, units, activation=None, name=None, threshold=0.5, **kwargs):
+        super(LIFSpike, self).__init__(**kwargs)
         self.units = units
-        
+        self.dense = tf.keras.layers.Dense(units)
         # define the activation to get from the built-in activation layers in Keras
         self.activation = tf.keras.activations.get(activation)
+        self.prev_output = None
+        self.threshold = threshold
         
-    def build(self, input_shape):
+    """def build(self, input_shape):
         # initialize the weight
+        #print("input_shape",input_shape, input_shape[-1])
         w_init = tf.random_normal_initializer()
         self.w = tf.Variable(name='kernel',
                              initial_value=w_init(shape=(input_shape[-1], self.units)),
@@ -29,12 +31,49 @@ class LIFSpike(Layer): #(tf.keras.layers.Layer) not work. Why?
         self.b = tf.Variable(name='bias',
                              initial_value=b_init(shape=(self.units, )),
                              trainable=True)
-        
+
+        # intialize the membrane
+        #mem_init = tf.zeros_initializer()
+        #self.mem = tf.Variable(name='mem',
+                             #initial_value=mem_init(shape=(self.units, )),
+                             #trainable=False)"""
+    #@tf.function
     def call(self, inputs):
+        #print("inputs", inputs)
+        
+        batch_size = tf.shape(inputs)[0]
+        if self.prev_output is None:
+            self.prev_output = tf.zeros([16, self.units], dtype=inputs.dtype)
         # pass the computation to the activation layer
         #print("III",inputs)
         
-        return tf.matmul(inputs, self.w) + self.b
+        #print("o", o_t_n1)
+        #self.mem = tau * self.mem * (1.0 - o_t_n1) + tf.matmul(inputs, self.w) + self.b
+        #return self.mem
+        #self.mem = self.mem + tf.matmul(inputs, self.w) + self.b
+        #current_output = tau * self.prev_output * (1 - o_t_n1) + tf.matmul(inputs, self.w) + self.b 
+        prev_binary_output = tf.where(self.prev_output > self.threshold, 1.0, 0.0)
+        input_transformed = self.dense(inputs)
+        #print("input_transformed", input_transformed.shape[0])
+        print("self.prev_output", self.prev_output)
+        if input_transformed.shape[0] is None:
+            current_output = tau * input_transformed #+ self.prev_output
+        else:
+            current_output = tau * input_transformed #+ self.prev_output
+        #print("self.prev_output", self.prev_output)
+        binary_output = tf.where(current_output > self.threshold, 1.0, 0.0)
+        #print("current_output", current_output)
+        self.prev_output = current_output
+        #print("inputs", inputs.shape[-1])
+        #for i in range(inputs.shape[-1]):
+            #self.prev_output += 1
+        #tf.print("self.prev_output", self.prev_output)
+        #with tf.init_scope():
+            #self.prev_output = current_output
+            #self.prev_output = tf.identity(current_output)
+
+        return binary_output
+        #return current_output
         #nsteps = inputs.shape[-1]
         #u   = tf.zeros(inputs.shape[:-1])
         #out = tf.zeros(inputs.shape)
