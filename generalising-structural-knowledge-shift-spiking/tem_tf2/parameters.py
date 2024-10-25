@@ -18,9 +18,9 @@ def default_params(width=None, height=None, world_type=None, batch_size=None):
     # e.g. for seq_len=75, tf_range=True is 30% slower than tf_range=False, but 80s vs 1000s compilation time
     params.tf_range = False
 
-    params.batch_size = 16 if not batch_size else batch_size
+    params.batch_size = 2 if not batch_size else batch_size #!!!!!!!!!!!!env_num
     # seq_len - we truncate BPTT to sequences of this length
-    params.seq_len = 2  # 75 or 50, The smaller the value, the shorter the computation time.
+    params.seq_len = 1  # 75 or 50, The smaller the value, the shorter the computation time.
     params.max_states = 350
 
     # 'rectangle', 'hexagonal', 'family_tree', 'line_ti', 'wood2000', 'frank2000', 'grieves2016', 'sun2020', 'nieh2021'
@@ -80,7 +80,7 @@ def default_params(width=None, height=None, world_type=None, batch_size=None):
                                        combins_table(params.s_size_comp, 2), params.s_size_comp)
 
     # TRAINING params
-    params.train_iters = 10 #2000000
+    params.train_iters = 2 #2000000
     params.train_on_visited_states_only = True
     params.learning_rate_max = 9.4e-4
     params.learning_rate_min = 8e-5
@@ -170,14 +170,14 @@ def get_env_params(par, width, height):
                       'seq_jitter': 30,
                       'save_walk': 30,
                       'sum_inf_walk': 30,
-                      'widths': [10, 10, 11, 11, 8, 9, 10, 11, 8, 9, 10, 11, 8, 8, 9, 9] if not width else
-                      [width] * par.batch_size,
-                      'heights': [10, 10, 11, 11, 8, 9, 10, 11, 8, 9, 10, 11, 8, 8, 9, 9] if not height else
-                      [height] * par.batch_size,
-                      #'widths': [10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10] if not width else
+                      #'widths': [10, 10, 11, 11, 8, 9, 10, 11, 8, 9, 10, 11, 8, 8, 9, 9] if not width else
                       #[width] * par.batch_size,
-                      #'heights': [10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10] if not height else
+                      #'heights': [10, 10, 11, 11, 8, 9, 10, 11, 8, 9, 10, 11, 8, 8, 9, 9] if not height else
                       #[height] * par.batch_size,
+                      'widths': [10, 10] if not width else
+                      [width] * par.batch_size,
+                      'heights': [10, 10] if not height else
+                      [height] * par.batch_size,
                       'rels': ['down', 'up', 'left', 'right', 'stay still'],
                       })
 
@@ -209,8 +209,8 @@ def get_n_states(par, width):
     par.tank_bias = 4.5
 
     world_type, n_envs = par.world_type, par.n_envs
-    #poss_heights = [10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10]
-    poss_heights = [8, 8, 9, 9, 11, 11, 12, 12, 8, 8, 9, 9, 11, 11, 12, 12]
+    poss_heights = [10, 10]
+    #poss_heights = [8, 8, 9, 9, 11, 11, 12, 12, 8, 8, 9, 9, 11, 11, 12, 12]
     reward_pos = [[0]] * par.batch_size
     no_reward_pos = [[0]] * par.batch_size
     reward_value = np.ones(par.batch_size)
@@ -218,14 +218,14 @@ def get_n_states(par, width):
     n_laps = 4
 
     if world_type == 'rectangle':
-        poss_widths = [11, 11, 12, 12, 8, 8, 9, 9, 11, 11, 12, 12, 8, 8, 9, 9] \
+        #poss_widths = [11, 11, 12, 12, 8, 8, 9, 9, 11, 11, 12, 12, 8, 8, 9, 9] \
+        #    if not width else [width] * par.batch_size
+        #poss_heights = [8, 8, 9, 9, 11, 11, 12, 12, 8, 8, 9, 9, 11, 11, 12, 12] \
+        #    if not width else [width] * par.batch_size
+        poss_widths = [10, 10] \
             if not width else [width] * par.batch_size
-        poss_heights = [8, 8, 9, 9, 11, 11, 12, 12, 8, 8, 9, 9, 11, 11, 12, 12] \
+        poss_heights = [10, 10] \
             if not width else [width] * par.batch_size
-        #poss_widths = [10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10] \
-            #if not width else [width] * par.batch_size
-        #poss_heights = [10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10] \
-            #if not width else [width] * par.batch_size
         n_states = [x * y for x, y in zip(poss_widths, poss_heights)]
         rels = ['down', 'up', 'left', 'right', 'stay still']
         restart_max, restart_min, seq_jitter, save_walk, sum_inf_walk = 40, 5, 30, 30, 30

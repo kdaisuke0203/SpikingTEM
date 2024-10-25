@@ -60,7 +60,7 @@ if profile or debug:
     params.save_walk = 1
 
 
-#@tf.function  # (experimental_compile=True)
+@tf.function  # (experimental_compile=True)
 def train_step(model_, model_inputs_):
     print("train_step")
     # everything entering this function should already be a tensor!
@@ -81,7 +81,7 @@ def train_step(model_, model_inputs_):
     return variables_, re_input_, losses_
 
 
-#@tf.function  # (experimental_compile=True)
+@tf.function  # (experimental_compile=True)
 def test_step(model_, model_inputs_):
     variables_, re_input_ = model_(model_inputs_, training=False)
     return variables_, re_input_
@@ -116,15 +116,15 @@ for train_i in range(params.train_iters): #for train_i in range(params.train_ite
         #print("train_dit_key",key)
     # convert all inputs to tensors - otherwise re-build graph every time
     #print("train_dict.inputs",train_dict.inputs)
-    for key in train_dict.inputs.keys():
-        print("train_dict.inputs_key",key)
+    #for key in train_dict.inputs.keys():
+        #print("train_dict.inputs_key",key)
     #print("train_dict.hebb",train_dict.hebb)
     #print("train_dict.inputs.xs",train_dict.inputs.xs.shape) #(16, 45, params.seq_len)
     #print("train_dict.inputs.gs",train_dict.inputs.gs.shape)
     inputs_tf = model_utils.inputs_2_tf(train_dict.inputs, train_dict.hebb, scalings, params.n_freq)
     #print("inputs_tf", inputs_tf) #
-    for key in inputs_tf.keys():
-        print("inputs_tf",key)
+    #for key in inputs_tf.keys():
+        #print("inputs_tf",key)
     #print("inputs_tf.g",inputs_tf.g)
     #print("inputs_tf.x_two_hot",inputs_tf.positions)
     model_start_time = time.time()
