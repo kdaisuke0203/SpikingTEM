@@ -168,15 +168,18 @@ class TEM(tf.keras.Model):
         mem_gen = self.mem_step(memories_dict, 'gen', i + mem_offset)
         x_all, x_logits_all, p_g = self.generation(p, g, g_gen, mem_gen)
         #print("x_all",x_all) #'x_p':shape=(env_num, params.s_size), 'x_g': shape=(env_num, params.s_size), 'x_gt': shape=(env_num, params.s_size)}
-        if len(tf.shape(x_all['x_p'])) == 2:
-            x_all['x_p'] = tf.tile(tf.expand_dims(x_all['x_p'], axis=0), multiples=[5, 1, 1])
+        #if len(tf.shape(x_all['x_p'])) == 2:
+            #x_all['x_p'] = tf.tile(tf.expand_dims(x_all['x_p'], axis=0), multiples=[5, 1, 1])
         #print("p_g",p_g) #shape(env_num, p_num)
         #print("x_all['x_p']",x_all['x_p'])
-        #print("len(tf.shape(x_logits_all['x_p']))",len(tf.shape(x_logits_all['x_p'])))
+        print("len(tf.shape(x_logits_all['x_p']))",len(tf.shape(x_logits_all['x_p'])))
         if len(tf.shape(x_logits_all['x_p'])) == 2:
             x_logits_all['x_p'] = tf.tile(tf.expand_dims(x_logits_all['x_p'], axis=0), multiples=[5, 1, 1])
+        print("len(tf.shape(x_logits_all['x_p']))",len(tf.shape(x_logits_all['x_p'])))
+        x_logits_all['x_p'] = tf.reduce_mean(x_logits_all['x_p'], axis=0)
+        print("len(tf.shape(x_logits_all['x_p']))",len(tf.shape(x_logits_all['x_p'])))
         #print("p_g",p_g) #shape(env_num, p_num)
-        #print("x_logits_all['x_p']",x_logits_all['x_p'])
+        print("x_logits_all['x_p']",x_logits_all['x_p'])
 
 
         # Hebbian update - equivalent to the matrix updates, but implemented differently for computational ease
@@ -347,13 +350,22 @@ class TEM(tf.keras.Model):
 
         #print("mu_attractor_sensum_",mu_attractor_sensum_)
         xx2 = []
-        #for dd, xx in enumerate(mu_attractor_sensum_):
-            #print("ffffffffffffffff",dd, xx)
+        for dd, xx in enumerate(mu_attractor_sensum_):
+            print("ffffffffffffffff",dd, xx)
             #xx2.append(poisson_spike.generate_poisson_spikes(xx, T=3))
             #print("F,x",f,x)
         #print("xx2",xx2)
         mus = [self.p2g_mu[f](x) for f, x in enumerate(mu_attractor_sensum_)]
-        #print("mus",mus)
+        """mus = []
+        for f, x in enumerate(mu_attractor_sensum_):
+            x_poisson = poisson_spike.generate_poisson_spikes(x)
+            mus.append(self.p2g_mu[f](x_poisson))"""
+        #print("mus",len(mus))
+        #print("ff",len(tf.shape(mus)))
+        for i in range(len(mus)):
+            mus[i] = tf.tile(tf.expand_dims(mus[i], axis=0), multiples=[5, 1, 1])
+            mus[i] = tf.reduce_mean(mus[i], axis=0)
+        print("mus", mus)
         mu = self.activation(tf.concat(mus, axis=1), 'g')
 
 
@@ -1032,6 +1044,7 @@ def compute_losses(model_inputs, data, trainable_variables, par):
     positions = model_inputs.positions
 
     s_visited_ = tf.unstack(s_visited, axis=1)
+    print("data.logits.x_p", data.logits.x_p[0])
     for i in range(par.seq_len):
 
         if par.world_type in ['loop_laps', 'splitter', 'in_out_bound', 'tank', 'splitter_grieves'] + \
@@ -1046,13 +1059,14 @@ def compute_losses(model_inputs, data, trainable_variables, par):
             x_mult = 1.0
 
         # losses for each batch
-        print("data.logits.x_p[i]",data.logits.x_p[i])
-        if len(tf.shape(data.logits.x_p))==3:
+        #print("data.logits.x_p[i]",data.logits.x_p[i])
+        """if len(tf.shape(data.logits.x_p))==3:
             data_logits_x_p = tf.squeeze(data.logits.x_p, axis=0)
             print("")
             lx_p_ = model_utils.sparse_softmax_cross_entropy_with_logits(xs[i], data_logits_x_p[i])
-        else:
-            lx_p_ = model_utils.sparse_softmax_cross_entropy_with_logits(xs[i], data.logits.x_p[i])
+        else:"""
+        print("xs[i], data.logits.x_p[i]", xs[i], data.logits.x_p[i])
+        lx_p_ = model_utils.sparse_softmax_cross_entropy_with_logits(xs[i], data.logits.x_p[i])
         lx_g_ = model_utils.sparse_softmax_cross_entropy_with_logits(xs[i], data.logits.x_g[i])
         lx_gt_ = model_utils.sparse_softmax_cross_entropy_with_logits(xs[i], data.logits.x_gt[i])
         #print("data.p.p_g", data.p.p_g[0])
