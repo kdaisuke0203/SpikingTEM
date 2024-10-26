@@ -20,6 +20,7 @@ class TEM(tf.keras.Model):
         super(TEM, self).__init__()
 
         self.par = par
+        self.T = 1.0
         self.precision = tf.float32 if 'precision' not in self.par else self.par.precision
         self.mask = tf.constant(par.mask_p, dtype=self.precision, name='mask_p')
         self.mask_g = tf.constant(par.mask_g, dtype=self.precision, name='mask_g')
@@ -323,6 +324,31 @@ class TEM(tf.keras.Model):
 
         return p
 
+
+    def cond(self, t, spike_train_):
+        return tf.less(t, 4.0)
+
+
+    def body(self, t, spike_train_):
+        #tf.print("t",tf.add(t[0], 0))
+        #tf.print("xx",x)
+        #count = tf.add(count, 1)
+        interval = -tf.math.log(tf.random.uniform([1]))
+        #tf.print("-tf.math.log(tf.random.uniform([1])/x)",interval)
+        #t = tf.add(t[0], -tf.math.log(tf.random.uniform([1])))
+        t = tf.add(t, interval[0])
+        tf.print("t",t)
+        #spike_train_.append(1)
+        int_t = tf.cast(t, tf.int32)
+        print("int", int_t.numpy().item())
+        print("int", type(int_t.numpy().item()))
+        it = int_t.numpy().item()
+        #tf.print("in", tf.cast(t, tf.int32))
+        spike_train_[it] = 1.0
+        tf.print("spike_train",spike_train_)
+        #tf.print("count",count)
+        return [t, spike_train_]
+
     @model_utils.define_scope
     def p2g(self, x2p, x, memories):
         """
@@ -349,12 +375,37 @@ class TEM(tf.keras.Model):
         mu_attractor_sensum_ = tf.split(mu_attractor_sensum, num_or_size_splits=self.par.n_phases_all, axis=1)
 
         #print("mu_attractor_sensum_",mu_attractor_sensum_)
-        xx2 = []
+        bin_num = 20
+        dt_min = 1 / bin_num
+        T = tf.constant(1.0)
+        #c = lambda i: tf.less(i, 10)
+        #b = lambda i: tf.add(i, 1)
+       # r = tf.while_loop(c, b, [i])
+        tf.random.set_seed(0) 
         for dd, xx in enumerate(mu_attractor_sensum_):
-            print("ffffffffffffffff",dd, xx)
-            #xx2.append(poisson_spike.generate_poisson_spikes(xx, T=3))
-            #print("F,x",f,x)
-        #print("xx2",xx2)
+            print("ffffffffffffffff",dd, xx.shape[0])
+            for i in range(xx.shape[0]):
+                for j in range(xx.shape[1]):
+                    t = tf.constant(0.0)
+                    #tf.print("t1",t)
+                    tt = tf.constant(0.0)
+                    """for k in range(5): 
+                        interval = -tf.math.log(tf.random.uniform([1])) / xx[i][j]
+                        tf.print("interval", interval)
+                        tt = tf.add(tt, interval)
+                        tf.cond(tt > 100, break)
+                        tf.print("tt",tt)
+                        #tt.append(interval)"""
+                    #t += interval
+                    #tf.print("t1",t)
+                    #spike_train = []
+                    tf.print("xx[i][j]",i,j,xx[i][j])
+                    count = tf.constant(0)
+                    spike_train = np.zeros(10)
+                    #tf.while_loop(self.cond, self.body, [t, count])
+                    tf.while_loop(self.cond, self.body, [t, spike_train])
+                    #r = tf.while_loop(self.cond, self.body, [t, xx[i][j], count])
+                    #print("r",r)
         mus = [self.p2g_mu[f](x) for f, x in enumerate(mu_attractor_sensum_)]
         """mus = []
         for f, x in enumerate(mu_attractor_sensum_):
@@ -1044,7 +1095,7 @@ def compute_losses(model_inputs, data, trainable_variables, par):
     positions = model_inputs.positions
 
     s_visited_ = tf.unstack(s_visited, axis=1)
-    print("data.logits.x_p", data.logits.x_p[0])
+    #print("data.logits.x_p", data.logits.x_p[0])
     for i in range(par.seq_len):
 
         if par.world_type in ['loop_laps', 'splitter', 'in_out_bound', 'tank', 'splitter_grieves'] + \
@@ -1065,7 +1116,7 @@ def compute_losses(model_inputs, data, trainable_variables, par):
             print("")
             lx_p_ = model_utils.sparse_softmax_cross_entropy_with_logits(xs[i], data_logits_x_p[i])
         else:"""
-        print("xs[i], data.logits.x_p[i]", xs[i], data.logits.x_p[i])
+        #print("xs[i], data.logits.x_p[i]", xs[i], data.logits.x_p[i])
         lx_p_ = model_utils.sparse_softmax_cross_entropy_with_logits(xs[i], data.logits.x_p[i])
         lx_g_ = model_utils.sparse_softmax_cross_entropy_with_logits(xs[i], data.logits.x_g[i])
         lx_gt_ = model_utils.sparse_softmax_cross_entropy_with_logits(xs[i], data.logits.x_gt[i])

@@ -54,7 +54,7 @@ debug = False
 profile = False
 tf.config.run_functions_eagerly(debug or debug_data or not params.graph_mode)
 #tf.config.experimental_run_functions_eagerly(True)
-#tf.config.run_functions_eagerly(True)
+tf.config.run_functions_eagerly(True) # enable tensor->numpy during calculation
 if profile or debug:
     params.train_iters = 11
     params.save_walk = 1
