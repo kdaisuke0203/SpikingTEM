@@ -20,7 +20,7 @@ class TEM(tf.keras.Model):
         super(TEM, self).__init__()
 
         self.par = par
-        self.T = 1.0
+        self.T = 20
         self.precision = tf.float32 if 'precision' not in self.par else self.par.precision
         self.mask = tf.constant(par.mask_p, dtype=self.precision, name='mask_p')
         self.mask_g = tf.constant(par.mask_g, dtype=self.precision, name='mask_g')
@@ -39,6 +39,9 @@ class TEM(tf.keras.Model):
         self.gamma = [
             tf.Variable(np.log(self.par.freqs[f] / (1 - self.par.freqs[f])), dtype=self.precision, trainable=True,
                         name='gamma_' + str(f)) for f in range(self.par.n_freq)]
+        
+        self.spike_his = tf.Variable(tf.zeros(self.T), dtype=self.precision, trainable=False, name='spike_his')
+        
         # Entorhinal preference weights
         self.w_x = tf.Variable(1.0, dtype=self.precision, trainable=True, name='w_x')
         # Entorhinal preference bias
@@ -173,14 +176,14 @@ class TEM(tf.keras.Model):
             #x_all['x_p'] = tf.tile(tf.expand_dims(x_all['x_p'], axis=0), multiples=[5, 1, 1])
         #print("p_g",p_g) #shape(env_num, p_num)
         #print("x_all['x_p']",x_all['x_p'])
-        print("len(tf.shape(x_logits_all['x_p']))",len(tf.shape(x_logits_all['x_p'])))
+        #print("len(tf.shape(x_logits_all['x_p']))",len(tf.shape(x_logits_all['x_p'])))
         if len(tf.shape(x_logits_all['x_p'])) == 2:
             x_logits_all['x_p'] = tf.tile(tf.expand_dims(x_logits_all['x_p'], axis=0), multiples=[5, 1, 1])
-        print("len(tf.shape(x_logits_all['x_p']))",len(tf.shape(x_logits_all['x_p'])))
+        #print("len(tf.shape(x_logits_all['x_p']))",len(tf.shape(x_logits_all['x_p'])))
         x_logits_all['x_p'] = tf.reduce_mean(x_logits_all['x_p'], axis=0)
-        print("len(tf.shape(x_logits_all['x_p']))",len(tf.shape(x_logits_all['x_p'])))
+        #print("len(tf.shape(x_logits_all['x_p']))",len(tf.shape(x_logits_all['x_p'])))
         #print("p_g",p_g) #shape(env_num, p_num)
-        print("x_logits_all['x_p']",x_logits_all['x_p'])
+        #print("x_logits_all['x_p']",x_logits_all['x_p'])
 
 
         # Hebbian update - equivalent to the matrix updates, but implemented differently for computational ease
@@ -326,7 +329,7 @@ class TEM(tf.keras.Model):
 
 
     def cond(self, t, spike_train_):
-        return tf.less(t, 4.0)
+        return tf.less(t, self.T)
 
 
     def body(self, t, spike_train_):
@@ -336,16 +339,24 @@ class TEM(tf.keras.Model):
         interval = -tf.math.log(tf.random.uniform([1]))
         #tf.print("-tf.math.log(tf.random.uniform([1])/x)",interval)
         #t = tf.add(t[0], -tf.math.log(tf.random.uniform([1])))
-        t = tf.add(t, interval[0])
-        tf.print("t",t)
-        #spike_train_.append(1)
-        int_t = tf.cast(t, tf.int32)
-        print("int", int_t.numpy().item())
-        print("int", type(int_t.numpy().item()))
-        it = int_t.numpy().item()
+        tf.print("interval", tf.round(interval))
+        #t = tf.add(t, interval[0])
+        t = tf.add(t, tf.round(interval[0]))
+        #tf.print("t",type(t))
+        index = tf.expand_dims(t, axis=0)
+        #tf.print("indd",type(index))
+        spike_train_ = tf.tensor_scatter_nd_update(spike_train_, tf.cast([index], dtype=tf.int32), [1])
+        tf.print("ind", index)
+        #spike_train_ = spike_train_ * tf.one_hot(3, self.T)
+        tf.print("spike",spike_train_, summarize=-1)
+        #int_t = tf.cast(t, tf.int32)
+        #spike_train_ = 1
+        #print("int", int_t.numpy().item())
+        #print("int", type(int_t.numpy().item()))
+        #it = int_t.numpy().item()
         #tf.print("in", tf.cast(t, tf.int32))
-        spike_train_[it] = 1.0
-        tf.print("spike_train",spike_train_)
+        #spike_train_[it] = 1.0
+        #tf.print("spike_train",spike_train_)
         #tf.print("count",count)
         return [t, spike_train_]
 
@@ -401,11 +412,9 @@ class TEM(tf.keras.Model):
                     #spike_train = []
                     tf.print("xx[i][j]",i,j,xx[i][j])
                     count = tf.constant(0)
-                    spike_train = np.zeros(10)
                     #tf.while_loop(self.cond, self.body, [t, count])
-                    tf.while_loop(self.cond, self.body, [t, spike_train])
-                    #r = tf.while_loop(self.cond, self.body, [t, xx[i][j], count])
-                    #print("r",r)
+                    r = tf.while_loop(self.cond, self.body, [t, self.spike_his])
+                    #print("r",r[1])
         mus = [self.p2g_mu[f](x) for f, x in enumerate(mu_attractor_sensum_)]
         """mus = []
         for f, x in enumerate(mu_attractor_sensum_):

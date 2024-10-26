@@ -54,11 +54,24 @@ debug = False
 profile = False
 tf.config.run_functions_eagerly(debug or debug_data or not params.graph_mode)
 #tf.config.experimental_run_functions_eagerly(True)
-tf.config.run_functions_eagerly(True) # enable tensor->numpy during calculation
+#tf.config.run_functions_eagerly(True) # enable tensor->numpy during calculation
 if profile or debug:
     params.train_iters = 11
     params.save_walk = 1
 
+h = tf.constant(5)
+
+# 長さhのすべての要素が4のテンソルを作成
+tensor = tf.fill([h], 4)
+
+# h番目（インデックスh-1）を1にするためのインデックスをテンソルに
+index = tf.expand_dims(h - 1, axis=0)
+tf.print("III",index)
+
+# テンソルを更新してh番目を1に
+updated_tensor = tf.tensor_scatter_nd_update(tensor, [index], [1])
+
+tf.print("yyy",updated_tensor)
 
 @tf.function  # (experimental_compile=True)
 def train_step(model_, model_inputs_):
