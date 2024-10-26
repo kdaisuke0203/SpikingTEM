@@ -40,9 +40,12 @@ class LIFSpike(Layer): #(tf.keras.layers.Layer) not work. Why?
                              #initial_value=mem_init(shape=(self.units, )),
                              #trainable=False)
         prev_output_init = tf.zeros_initializer()
-        self.prev_output = tf.Variable(name='mem',
+        """self.prev_output = tf.Variable(name='mem',
                              initial_value=prev_output_init(shape=(self.units, )),
                              trainable=False)
+        self.prev_output = tf.Variable(name='mem',
+                             initial_value=prev_output_init(shape=(self.units, )),
+                             trainable=False)"""
 
 
     #@tf.function
@@ -63,31 +66,33 @@ class LIFSpike(Layer): #(tf.keras.layers.Layer) not work. Why?
         #current_output = tau * self.prev_output * (1 - o_t_n1) + tf.matmul(inputs, self.w) + self.b 
         #prev_binary_output = tf.where(self.prev_output > self.threshold, 1.0, 0.0)
         #print("inputs", inputs) #shape(env_num, cell_num)
-        if len(tf.shape(inputs))==2:
-            inputs2 = tf.tile(tf.expand_dims(inputs, axis=0), [3,1,1])
+        #print("len(tf.shape(inputs))",inputs)
+        """if len(tf.shape(inputs))==2:
+            inputs2 = tf.tile(tf.expand_dims(inputs, axis=-1), [1,1,self.timewindow])
         else:
-            inputs2 = inputs
-        #print("inputs", inputs2)
+            print("len(tf.shape(inputs))",len(tf.shape(inputs)))
+            inputs3 = inputs"""
+        #print("inputs2", inputs2)
         input_transformed = self.dense(inputs)
-        input_transformed2 = self.dense(inputs2)
-        #print("input_transformed", input_transformed.shape[0])
+        #input_transformed2 = self.dense(inputs2)
+        #print("input_transformed", input_transformed)
         #print("self.prev_output", self.prev_output)
-        prev_output = tf.zeros([2, self.units])
-        prev_output2 = tf.zeros([inputs2.shape[0], 2, self.units])
+        #prev_output = tf.zeros([inputs.shape[0], self.units])
+        #prev_output2 = tf.zeros([inputs2.shape[0], self.units, inputs2.shape[2]])
         #print("P",prev_output2)
-        binary_prev_output = tf.zeros([2, self.units])
+        #binary_prev_output = tf.zeros([inputs.shape[0], self.units])
         for i in range(self.timewindow):
             if input_transformed.shape[0] is None:
                 current_output = tau * input_transformed #+ self.prev_output
-                current_output2 = tau * input_transformed2
+                #current_output2 = tau * input_transformed2
             else:
-                current_output = input_transformed + tau * prev_output * (1 -binary_prev_output)
-                current_output2 = input_transformed2 + tau * prev_output2 #* (1 -binary_prev_output2)
-                prev_output = current_output
-                binary_prev_output = tf.where(prev_output > self.threshold, 1.0, 0.0)
+                current_output = input_transformed #+ tau * prev_output * (1 -binary_prev_output)
+                #current_output2 = input_transformed2 + tau * prev_output2 #* (1 -binary_prev_output2)
+                #prev_output = current_output
+                #binary_prev_output = tf.where(prev_output > self.threshold, 1.0, 0.0)
                 #tf.print("binary_prev_output", i, prev_output)
         #print("self.prev_output", self.prev_output)
-        binary_output = tf.where(current_output > self.threshold, 1.0, 0.0)
+        #binary_output = tf.where(current_output > self.threshold, 1.0, 0.0)
         #print("current_output", current_output2)
         #self.prev_output = current_output
         #print("inputs", inputs.shape[-1])

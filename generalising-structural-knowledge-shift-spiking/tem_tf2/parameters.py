@@ -20,7 +20,7 @@ def default_params(width=None, height=None, world_type=None, batch_size=None):
 
     params.batch_size = 2 if not batch_size else batch_size #!!!!!!!!!!!!env_num
     # seq_len - we truncate BPTT to sequences of this length
-    params.seq_len = 1  # 75 or 50, The smaller the value, the shorter the computation time.
+    params.seq_len = 6  # 75 or 50, The smaller the value, the shorter the computation time.
     params.max_states = 350
 
     # 'rectangle', 'hexagonal', 'family_tree', 'line_ti', 'wood2000', 'frank2000', 'grieves2016', 'sun2020', 'nieh2021'
@@ -52,7 +52,7 @@ def default_params(width=None, height=None, world_type=None, batch_size=None):
     params.s_size_comp = 10
 
     # numbers of variables for each frequency
-    params.n_grids_all = [7] #[30, 30, 24, 18, 18]
+    params.n_grids_all = [7,3] #[30, 30, 24, 18, 18]
     params.grid2phase = 2
     params.n_phases_all = [int(n_grid / params.grid2phase) for n_grid in params.n_grids_all]
     print("params.n_phases_all",params.n_phases_all)

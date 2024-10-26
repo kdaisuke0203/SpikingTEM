@@ -20,7 +20,7 @@ class TEM(tf.keras.Model):
         super(TEM, self).__init__()
 
         self.par = par
-        self.T = 20
+        self.spike_step = 3
         self.precision = tf.float32 if 'precision' not in self.par else self.par.precision
         self.mask = tf.constant(par.mask_p, dtype=self.precision, name='mask_p')
         self.mask_g = tf.constant(par.mask_g, dtype=self.precision, name='mask_g')
@@ -40,7 +40,7 @@ class TEM(tf.keras.Model):
             tf.Variable(np.log(self.par.freqs[f] / (1 - self.par.freqs[f])), dtype=self.precision, trainable=True,
                         name='gamma_' + str(f)) for f in range(self.par.n_freq)]
         
-        self.spike_his = tf.Variable(tf.zeros(self.T), dtype=self.precision, trainable=False, name='spike_his')
+        self.spike_his = tf.Variable(tf.zeros(self.spike_step), dtype=self.precision, trainable=False, name='spike_his')
         
         # Entorhinal preference weights
         self.w_x = tf.Variable(1.0, dtype=self.precision, trainable=True, name='w_x')
@@ -61,38 +61,38 @@ class TEM(tf.keras.Model):
         self.g_init = None
 
         # MLP for transition weights
-        self.t_vec = tf.keras.Sequential([LIFSpike(units=self.par.d_mixed_size, input_shape=(self.par.n_actions,),
-                                                activation=tf.tanh, name='t_vec_1'), 
+        self.t_vec = tf.keras.Sequential([LIFSpike(units=self.par.d_mixed_size,
+                                                activation=tf.tanh, timewindow=self.spike_step, name='t_vec_1'), 
                                             LIFSpike(units=self.par.g_size ** 2, activation=tf.tanh, name='t_vec_2')])
 
         # p2g
         if 'p' in self.par.infer_g_type:
-            self.p2g_mu = [tf.keras.Sequential([LIFSpike(units=2 * g_size, input_shape=(phase_size,), activation=tf.nn.elu,
-                                                      name='p2g_mu_1_' + str(f)),
+            self.p2g_mu = [tf.keras.Sequential([LIFSpike(units=2 * g_size, activation=tf.nn.elu,
+                                                      timewindow=self.spike_step,name='p2g_mu_1_' + str(f)),
                                                 LIFSpike(units=g_size, activation='relu', name='p2g_mu_2_' + str(f))]) for f, (g_size, phase_size)
                            in enumerate(zip(self.par.n_grids_all, self.par.n_phases_all))]
 
-            self.p2g_logsig = [tf.keras.Sequential([LIFSpike(units=2 * g_size, input_shape=(2,), activation=tf.nn.elu,
-                                                          name='p2g_logsig_1_' + str(f)),
-                                                    LIFSpike(units=g_size, activation='relu',name='p2g_logsig_2_' + str(f))]) for f, g_size in
+            self.p2g_logsig = [tf.keras.Sequential([LIFSpike(units=2 * g_size, activation=tf.nn.elu,
+                                                          timewindow=self.spike_step,name='p2g_logsig_1_' + str(f)),
+                                                    LIFSpike(units=g_size, activation='relu',timewindow=self.spike_step,name='p2g_logsig_2_' + str(f))]) for f, g_size in
                                enumerate(self.par.n_grids_all)]
 
         # g2g logsigs
-        self.g2g_logsig_inf = [tf.keras.Sequential([LIFSpike(units=2 * g_size, input_shape=(g_size,), activation=tf.nn.elu,
-                                                          name='g2g_logsig_inf_1_' + str(f)),
-                                                    LIFSpike(units=g_size, activation='relu',name='g2g_logsig_2_' + str(f))]) for f, g_size in
+        self.g2g_logsig_inf = [tf.keras.Sequential([LIFSpike(units=2 * g_size, activation=tf.nn.elu,
+                                                          timewindow=self.spike_step,name='g2g_logsig_inf_1_' + str(f)),
+                                                    LIFSpike(units=g_size, activation='relu',timewindow=self.spike_step,name='g2g_logsig_2_' + str(f))]) for f, g_size in
                                enumerate(self.par.n_grids_all)]
 
         # MLP for compressing sensory observation
         if not self.par.two_hot:
-            self.MLP_c = tf.keras.Sequential([LIFSpike(units=self.par.s_size_comp_hidden, input_shape=(self.par.s_size,),
+            self.MLP_c = tf.keras.Sequential([LIFSpike(units=self.par.s_size_comp_hidden,
                                                     activation=tf.nn.elu, 
-                                                    name='MLP_c_1'),
-                                              LIFSpike(units=self.par.s_size_comp, activation='relu',name='MLP_c_2')
+                                                    timewindow=self.spike_step,name='MLP_c_1'),
+                                              LIFSpike(units=self.par.s_size_comp, activation='relu',timewindow=self.spike_step,name='MLP_c_2')
                                               ])
 
-        self.MLP_c_star = tf.keras.Sequential([LIFSpike(units=self.par.s_size_comp_hidden, activation='relu',name='MLP_c_star_1'),
-                                               LIFSpike(units=self.par.s_size, activation='relu',name='MLP_c_star_2')])
+        self.MLP_c_star = tf.keras.Sequential([LIFSpike(units=self.par.s_size_comp_hidden, activation='relu',timewindow=self.spike_step,name='MLP_c_star_1'),
+                                               LIFSpike(units=self.par.s_size, activation='relu',timewindow=self.spike_step,name='MLP_c_star_2')])
 
     @model_utils.define_scope
     def call(self, inputs, training=None, mask=None):
@@ -188,7 +188,7 @@ class TEM(tf.keras.Model):
 
         # Hebbian update - equivalent to the matrix updates, but implemented differently for computational ease
         memories_dict = self.hebbian(p, p_g, p_x, memories_dict, i + mem_offset)
-        p_g = tf.tile(tf.expand_dims(p_g, axis=0), multiples=[5, 1, 1])
+        #p_g = tf.tile(tf.expand_dims(p_g, axis=0), multiples=[5, 1, 1])
         #print("P",p_g)
         # Collate all variables for losses and saving representations
         var_updates = [[['p', 'p'], p],
@@ -329,7 +329,7 @@ class TEM(tf.keras.Model):
 
 
     def cond(self, t, spike_train_):
-        return tf.less(t, self.T)
+        return tf.less(t, self.spike_step)
 
 
     def body(self, t, spike_train_):
@@ -339,16 +339,16 @@ class TEM(tf.keras.Model):
         interval = -tf.math.log(tf.random.uniform([1]))
         #tf.print("-tf.math.log(tf.random.uniform([1])/x)",interval)
         #t = tf.add(t[0], -tf.math.log(tf.random.uniform([1])))
-        tf.print("interval", tf.round(interval))
+        #tf.print("interval", tf.round(interval))
         #t = tf.add(t, interval[0])
         t = tf.add(t, tf.round(interval[0]))
         #tf.print("t",type(t))
         index = tf.expand_dims(t, axis=0)
         #tf.print("indd",type(index))
         spike_train_ = tf.tensor_scatter_nd_update(spike_train_, tf.cast([index], dtype=tf.int32), [1])
-        tf.print("ind", index)
+        #tf.print("ind", index)
         #spike_train_ = spike_train_ * tf.one_hot(3, self.T)
-        tf.print("spike",spike_train_, summarize=-1)
+        #tf.print("spike",spike_train_, summarize=-1)
         #int_t = tf.cast(t, tf.int32)
         #spike_train_ = 1
         #print("int", int_t.numpy().item())
@@ -385,7 +385,7 @@ class TEM(tf.keras.Model):
 
         mu_attractor_sensum_ = tf.split(mu_attractor_sensum, num_or_size_splits=self.par.n_phases_all, axis=1)
 
-        #print("mu_attractor_sensum_",mu_attractor_sensum_)
+        #print("mu_attractor_sensum_",mu_attractor_sensum_[0].shape)
         bin_num = 20
         dt_min = 1 / bin_num
         T = tf.constant(1.0)
@@ -393,8 +393,9 @@ class TEM(tf.keras.Model):
         #b = lambda i: tf.add(i, 1)
        # r = tf.while_loop(c, b, [i])
         tf.random.set_seed(0) 
+        spikes_his = []
         for dd, xx in enumerate(mu_attractor_sensum_):
-            print("ffffffffffffffff",dd, xx.shape[0])
+            #print("ffffffffffffffff",dd, xx)
             for i in range(xx.shape[0]):
                 for j in range(xx.shape[1]):
                     t = tf.constant(0.0)
@@ -410,12 +411,21 @@ class TEM(tf.keras.Model):
                     #t += interval
                     #tf.print("t1",t)
                     #spike_train = []
-                    tf.print("xx[i][j]",i,j,xx[i][j])
+                    #tf.print("xx[i][j]",i,j,xx[i][j])
                     count = tf.constant(0)
                     #tf.while_loop(self.cond, self.body, [t, count])
                     r = tf.while_loop(self.cond, self.body, [t, self.spike_his])
-                    #print("r",r[1])
+                    #tf.print("r",r)
+                    spikes_his.append(r[1])
+        #tf.print("shi",spikes_his,summarize=-1)
+        spikes_his = tf.convert_to_tensor(spikes_his)
+        #reshaped_spikes_his = tf.reshape(spikes_his, (mu_attractor_sensum_[0].shape[0], mu_attractor_sensum_[0].shape[1], self.spike_step))
+        #tf.print("shi",reshaped_spikes_his.shape,summarize=-1)
+        #print("shi",reshaped_spikes_his)
+        #for i in range(self.spike_step):   
+        #    mus_spike = self.p2g_mu[0](reshaped_spikes_his[:,:,0])
         mus = [self.p2g_mu[f](x) for f, x in enumerate(mu_attractor_sensum_)]
+        #mus = [self.p2g_mu[f](reshaped_spikes_his[:,:,0]) for f, x in enumerate(mu_attractor_sensum_)]
         """mus = []
         for f, x in enumerate(mu_attractor_sensum_):
             x_poisson = poisson_spike.generate_poisson_spikes(x)
@@ -425,7 +435,7 @@ class TEM(tf.keras.Model):
         for i in range(len(mus)):
             mus[i] = tf.tile(tf.expand_dims(mus[i], axis=0), multiples=[5, 1, 1])
             mus[i] = tf.reduce_mean(mus[i], axis=0)
-        print("mus", mus)
+        #print("mus", mus)
         mu = self.activation(tf.concat(mus, axis=1), 'g')
 
 
@@ -1129,10 +1139,11 @@ def compute_losses(model_inputs, data, trainable_variables, par):
         lx_p_ = model_utils.sparse_softmax_cross_entropy_with_logits(xs[i], data.logits.x_p[i])
         lx_g_ = model_utils.sparse_softmax_cross_entropy_with_logits(xs[i], data.logits.x_g[i])
         lx_gt_ = model_utils.sparse_softmax_cross_entropy_with_logits(xs[i], data.logits.x_gt[i])
-        #print("data.p.p_g", data.p.p_g[0])
-        data_p_g=tf.squeeze(data.p.p_g, axis=0)
-        lp_ = model_utils.squared_error(data.p.p[i], data_p_g[i])
-        #lp_ = model_utils.squared_error(data.p.p[i], data.p.p_g[i])
+        #print("data.p.p_g", data.p.p_g)
+        #data_p_g=tf.squeeze(data.p.p_g, axis=0)
+        #lp_ = model_utils.squared_error(data.p.p[i], data_p_g[i])
+        #print("data.p.p[i], data.p.p_g[i]",data.p.p[i], data.p.p_g[i])
+        lp_ = model_utils.squared_error(data.p.p[i], data.p.p_g[i])
         lp_x_ = model_utils.squared_error(data.p.p[i], data.p.p_x[i]) if 'lp_x' in par.which_costs else 0
         lg_ = model_utils.squared_error(data.g.g[i], data.g.g_gen[i])
 
