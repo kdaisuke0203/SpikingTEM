@@ -52,7 +52,7 @@ def default_params(width=None, height=None, world_type=None, batch_size=None):
     params.s_size_comp = 10
 
     # numbers of variables for each frequency
-    params.n_grids_all = [30, 30, 24] # [30, 30, 24, 18, 18]
+    params.n_grids_all = [10, 10, 8] # [30, 30, 24, 18, 18]
     params.grid2phase = 2
     params.n_phases_all = [int(n_grid / params.grid2phase) for n_grid in params.n_grids_all]
     params.tot_phases = sum(params.n_phases_all)
@@ -78,7 +78,7 @@ def default_params(width=None, height=None, world_type=None, batch_size=None):
                                        combins_table(params.s_size_comp, 2), params.s_size_comp)
 
     # TRAINING params
-    params.train_iters = 600 #2000000
+    params.train_iters = 510 #2000000
     params.train_on_visited_states_only = True
     params.learning_rate_max = 9.4e-4
     params.learning_rate_min = 8e-5

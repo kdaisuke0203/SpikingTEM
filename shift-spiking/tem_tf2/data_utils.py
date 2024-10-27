@@ -506,10 +506,12 @@ def save_model_outputs(model, model_utils_, train_i, save_path, pars):
         # Update input
         test_dict = data_step(test_dict, pars, test=True)
         scalings = parameters.get_scaling_parameters(train_i, pars)
-        inputs_test_tf = model_utils_.inputs_2_tf(test_dict.inputs, test_dict.hebb, scalings, pars.n_freq)
+        #inputs_test_tf = model_utils_.inputs_2_tf(test_dict.inputs, test_dict.hebb, scalings, pars.n_freq)
+        inputs_test_tf = model_utils.inputs_2_tf(test_dict.inputs, test_dict.hebb, scalings, pars.n_freq)
         # Do model forward pass step
         variables_test, re_input_test = model(inputs_test_tf, training=False)
-        re_input_test = model_utils_.tf2numpy(re_input_test)
+        #re_input_test = model_utils_.tf2numpy(re_input_test)
+        re_input_test = model_utils.tf2numpy(re_input_test)
 
         test_dict.variables.gs, test_dict.variables.x_s, test_dict.hebb.a_rnn, test_dict.hebb.a_rnn_inv = \
             re_input_test.g, re_input_test.x_s, re_input_test.a_rnn, re_input_test.a_rnn_inv
@@ -535,7 +537,8 @@ def save_model_outputs(model, model_utils_, train_i, save_path, pars):
 
     # save all final variables
     np.save(save_path + '/final_variables' + str(train_i),
-            model_utils_.DotDict.to_dict(model_utils_.tf2numpy(variables_test)), allow_pickle=True)
+            #model_utils_.DotDict.to_dict(model_utils_.tf2numpy(variables_test)), allow_pickle=True)
+            model_utils.DotDict.to_dict(model_utils.tf2numpy(variables_test)), allow_pickle=True)
 
     # Save all timeseries to file
     np.save(save_path + '/gs_timeseries_' + str(train_i), gs_timeseries)
@@ -545,11 +548,13 @@ def save_model_outputs(model, model_utils_, train_i, save_path, pars):
     np.save(save_path + '/xs_gt_timeseries_' + str(train_i), xs_gt_timeseries)
 
     # Convert test_dict, which is DotDicts, to a normal python dictionary - don't want any DotDicts remaining
-    final_dict = model_utils_.DotDict.to_dict(test_dict)
+    #final_dict = model_utils_.DotDict.to_dict(test_dict)
+    final_dict = model_utils.DotDict.to_dict(test_dict)
 
     # convert class params to dict
     for i, env in enumerate(final_dict['curric_env']['envs']):
-        final_dict['curric_env']['envs'][i].par = model_utils_.DotDict.to_dict(env.par)
+        #final_dict['curric_env']['envs'][i].par = model_utils_.DotDict.to_dict(env.par)
+        final_dict['curric_env']['envs'][i].par = model_utils.DotDict.to_dict(env.par)
 
     # Save final test_dict to file, which contains all environment info
     np.save(save_path + '/final_dict_' + str(train_i), final_dict, allow_pickle=True)

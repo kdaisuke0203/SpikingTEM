@@ -9,6 +9,8 @@ import model_utils
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.layers import Dense
+from snn_layers import *
+import poisson_spike
 
 eps = model_utils.eps
 
@@ -18,6 +20,7 @@ class TEM(tf.keras.Model):
         super(TEM, self).__init__()
 
         self.par = par
+        self.spike_step = 3
         self.precision = tf.float32 if 'precision' not in self.par else self.par.precision
         self.mask = tf.constant(par.mask_p, dtype=self.precision, name='mask_p')
         self.mask_g = tf.constant(par.mask_g, dtype=self.precision, name='mask_g')
@@ -36,6 +39,9 @@ class TEM(tf.keras.Model):
         self.gamma = [
             tf.Variable(np.log(self.par.freqs[f] / (1 - self.par.freqs[f])), dtype=self.precision, trainable=True,
                         name='gamma_' + str(f)) for f in range(self.par.n_freq)]
+        
+        self.spike_his = tf.Variable(tf.zeros(self.spike_step), dtype=self.precision, trainable=False, name='spike_his')
+        
         # Entorhinal preference weights
         self.w_x = tf.Variable(1.0, dtype=self.precision, trainable=True, name='w_x')
         # Entorhinal preference bias
@@ -55,48 +61,38 @@ class TEM(tf.keras.Model):
         self.g_init = None
 
         # MLP for transition weights
-        self.t_vec = tf.keras.Sequential([Dense(self.par.d_mixed_size, input_shape=(self.par.n_actions,),
-                                                activation=tf.tanh, kernel_initializer=glorot_uniform, name='t_vec_1',
-                                                use_bias=False), Dense(self.par.g_size ** 2, use_bias=False,
-                                                                       kernel_initializer=tf.zeros_initializer,
-                                                                       name='t_vec_2')])
+        self.t_vec = tf.keras.Sequential([LIFSpike(units=self.par.d_mixed_size,
+                                                activation=tf.tanh, timewindow=self.spike_step, name='t_vec_1'), 
+                                            LIFSpike(units=self.par.g_size ** 2, activation=tf.tanh, name='t_vec_2')])
 
         # p2g
         if 'p' in self.par.infer_g_type:
-            self.p2g_mu = [tf.keras.Sequential([Dense(2 * g_size, input_shape=(phase_size,), activation=tf.nn.elu,
-                                                      name='p2g_mu_1_' + str(f), kernel_initializer=glorot_uniform),
-                                                Dense(g_size, name='p2g_mu_2_' + str(f),
-                                                      kernel_initializer=trunc_norm_p2g)]) for f, (g_size, phase_size)
+            self.p2g_mu = [tf.keras.Sequential([LIFSpike(units=2 * g_size, activation=tf.nn.elu,
+                                                      timewindow=self.spike_step,name='p2g_mu_1_' + str(f)),
+                                                LIFSpike(units=g_size, activation='relu', name='p2g_mu_2_' + str(f))]) for f, (g_size, phase_size)
                            in enumerate(zip(self.par.n_grids_all, self.par.n_phases_all))]
 
-            self.p2g_logsig = [tf.keras.Sequential([Dense(2 * g_size, input_shape=(2,), activation=tf.nn.elu,
-                                                          kernel_initializer=glorot_uniform,
-                                                          name='p2g_logsig_1_' + str(f)),
-                                                    Dense(g_size, kernel_initializer=glorot_uniform, activation=tf.tanh,
-                                                          name='p2g_logsig_2_' + str(f))]) for f, g_size in
+            self.p2g_logsig = [tf.keras.Sequential([LIFSpike(units=2 * g_size, activation=tf.nn.elu,
+                                                          timewindow=self.spike_step,name='p2g_logsig_1_' + str(f)),
+                                                    LIFSpike(units=g_size, activation='relu',timewindow=self.spike_step,name='p2g_logsig_2_' + str(f))]) for f, g_size in
                                enumerate(self.par.n_grids_all)]
 
         # g2g logsigs
-        self.g2g_logsig_inf = [tf.keras.Sequential([Dense(2 * g_size, input_shape=(g_size,), activation=tf.nn.elu,
-                                                          kernel_initializer=glorot_uniform,
-                                                          name='g2g_logsig_inf_1_' + str(f)),
-                                                    Dense(g_size, activation=tf.tanh, kernel_initializer=glorot_uniform,
-                                                          name='g2g_logsig_inf_2_' + str(f))]) for f, g_size in
+        self.g2g_logsig_inf = [tf.keras.Sequential([LIFSpike(units=2 * g_size, activation=tf.nn.elu,
+                                                          timewindow=self.spike_step,name='g2g_logsig_inf_1_' + str(f)),
+                                                    LIFSpike(units=g_size, activation='relu',timewindow=self.spike_step,name='g2g_logsig_2_' + str(f))]) for f, g_size in
                                enumerate(self.par.n_grids_all)]
 
         # MLP for compressing sensory observation
         if not self.par.two_hot:
-            self.MLP_c = tf.keras.Sequential([Dense(self.par.s_size_comp_hidden, input_shape=(self.par.s_size,),
-                                                    activation=tf.nn.elu, kernel_initializer=glorot_uniform,
-                                                    name='MLP_c_1'),
-                                              Dense(self.par.s_size_comp, kernel_initializer=glorot_uniform,
-                                                    name='MLP_c_2')])
+            self.MLP_c = tf.keras.Sequential([LIFSpike(units=self.par.s_size_comp_hidden,
+                                                    activation=tf.nn.elu, 
+                                                    timewindow=self.spike_step,name='MLP_c_1'),
+                                              LIFSpike(units=self.par.s_size_comp, activation='relu',timewindow=self.spike_step,name='MLP_c_2')
+                                              ])
 
-        self.MLP_c_star = tf.keras.Sequential([Dense(self.par.s_size_comp_hidden, input_shape=(self.par.s_size_comp,),
-                                                     activation=tf.nn.elu, kernel_initializer=glorot_uniform,
-                                                     name='MLP_c_star_1'),
-                                               Dense(self.par.s_size, kernel_initializer=glorot_uniform,
-                                                     name='MLP_c_star_2')])
+        self.MLP_c_star = tf.keras.Sequential([LIFSpike(units=self.par.s_size_comp_hidden, activation='relu',timewindow=self.spike_step,name='MLP_c_star_1'),
+                                               LIFSpike(units=self.par.s_size, activation='relu',timewindow=self.spike_step,name='MLP_c_star_2')])
 
     @model_utils.define_scope
     def call(self, inputs, training=None, mask=None):

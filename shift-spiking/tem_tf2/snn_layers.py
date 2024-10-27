@@ -13,17 +13,17 @@ class LIFSpike(Layer): #(tf.keras.layers.Layer) not work. Why?
     def __init__(self, units, activation=None, name=None, threshold=0.5, timewindow=10, **kwargs):
         super(LIFSpike, self).__init__(**kwargs)
         self.units = units
-        self.dense = tf.keras.layers.Dense(units)
+        #self.dense = tf.keras.layers.Dense(units)
         # define the activation to get from the built-in activation layers in Keras
         self.activation = tf.keras.activations.get(activation)
         self.prev_output = None
         self.threshold = threshold
         self.timewindow = timewindow
         
-    #def build(self, input_shape):
+    def build(self, input_shape):
         # initialize the weight
         #print("input_shape",input_shape, input_shape[-1])
-        """w_init = tf.random_normal_initializer()
+        w_init = tf.random_normal_initializer()
         self.w = tf.Variable(name='kernel',
                              initial_value=w_init(shape=(input_shape[-1], self.units)),
                              trainable=True)
@@ -32,7 +32,7 @@ class LIFSpike(Layer): #(tf.keras.layers.Layer) not work. Why?
         b_init = tf.zeros_initializer()
         self.b = tf.Variable(name='bias',
                              initial_value=b_init(shape=(self.units, )),
-                             trainable=True)"""
+                             trainable=True)
 
         # intialize the membrane
         #mem_init = tf.zeros_initializer()
@@ -73,7 +73,8 @@ class LIFSpike(Layer): #(tf.keras.layers.Layer) not work. Why?
             print("len(tf.shape(inputs))",len(tf.shape(inputs)))
             inputs3 = inputs"""
         #print("inputs2", inputs2)
-        input_transformed = self.dense(inputs)
+        #input_transformed = self.dense(inputs)
+        input_transformed = tf.matmul(inputs, self.w) + self.b
         #input_transformed2 = self.dense(inputs2)
         #print("input_transformed", input_transformed)
         #print("self.prev_output", self.prev_output)
