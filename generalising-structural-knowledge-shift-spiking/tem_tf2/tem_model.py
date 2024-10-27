@@ -123,7 +123,7 @@ class TEM(tf.keras.Model):
             # using and appending to lists is slow with tf.range
             # tf.range version slower (+30%) than range version, though faster compilation (1000s to 80s for bptt=75)
             # tf.range version uses much less RAM
-            print("i",i)
+            #print("i",i)
             # single step
             g_t, x_t, variable_dict, memories_dict = self.step(inputs, g_t, x_t, variable_dict, memories_dict, i,
                                                                ta_mat.read(i))
@@ -177,10 +177,10 @@ class TEM(tf.keras.Model):
         #print("p_g",p_g) #shape(env_num, p_num)
         #print("x_all['x_p']",x_all['x_p'])
         #print("len(tf.shape(x_logits_all['x_p']))",len(tf.shape(x_logits_all['x_p'])))
-        if len(tf.shape(x_logits_all['x_p'])) == 2:
+        """if len(tf.shape(x_logits_all['x_p'])) == 2:
             x_logits_all['x_p'] = tf.tile(tf.expand_dims(x_logits_all['x_p'], axis=0), multiples=[5, 1, 1])
         #print("len(tf.shape(x_logits_all['x_p']))",len(tf.shape(x_logits_all['x_p'])))
-        x_logits_all['x_p'] = tf.reduce_mean(x_logits_all['x_p'], axis=0)
+        x_logits_all['x_p'] = tf.reduce_mean(x_logits_all['x_p'], axis=0)"""
         #print("len(tf.shape(x_logits_all['x_p']))",len(tf.shape(x_logits_all['x_p'])))
         #print("p_g",p_g) #shape(env_num, p_num)
         #print("x_logits_all['x_p']",x_logits_all['x_p'])
@@ -299,7 +299,7 @@ class TEM(tf.keras.Model):
 
         p_x = None
         mu, sigma = g2g_all
-        #print("mu2",mu) #shape(env_num, g_num)
+        print("mu2",mu) #shape(env_num, g_num)
         #print("mu_x2p",mu_x2p) #shape(env_num, p_num)
 
         # Inference - factorised posteriors
@@ -386,7 +386,7 @@ class TEM(tf.keras.Model):
         mu_attractor_sensum_ = tf.split(mu_attractor_sensum, num_or_size_splits=self.par.n_phases_all, axis=1)
 
         #print("mu_attractor_sensum_",mu_attractor_sensum_[0].shape)
-        bin_num = 20
+        """bin_num = 20
         dt_min = 1 / bin_num
         T = tf.constant(1.0)
         #c = lambda i: tf.less(i, 10)
@@ -401,13 +401,13 @@ class TEM(tf.keras.Model):
                     t = tf.constant(0.0)
                     #tf.print("t1",t)
                     tt = tf.constant(0.0)
-                    """for k in range(5): 
+                    for k in range(5): 
                         interval = -tf.math.log(tf.random.uniform([1])) / xx[i][j]
                         tf.print("interval", interval)
                         tt = tf.add(tt, interval)
                         tf.cond(tt > 100, break)
                         tf.print("tt",tt)
-                        #tt.append(interval)"""
+                        #tt.append(interval)
                     #t += interval
                     #tf.print("t1",t)
                     #spike_train = []
@@ -417,8 +417,9 @@ class TEM(tf.keras.Model):
                     r = tf.while_loop(self.cond, self.body, [t, self.spike_his])
                     #tf.print("r",r)
                     spikes_his.append(r[1])
+        """
         #tf.print("shi",spikes_his,summarize=-1)
-        spikes_his = tf.convert_to_tensor(spikes_his)
+        #spikes_his = tf.convert_to_tensor(spikes_his)
         #reshaped_spikes_his = tf.reshape(spikes_his, (mu_attractor_sensum_[0].shape[0], mu_attractor_sensum_[0].shape[1], self.spike_step))
         #tf.print("shi",reshaped_spikes_his.shape,summarize=-1)
         #print("shi",reshaped_spikes_his)
@@ -432,9 +433,9 @@ class TEM(tf.keras.Model):
             mus.append(self.p2g_mu[f](x_poisson))"""
         #print("mus",len(mus))
         #print("ff",len(tf.shape(mus)))
-        for i in range(len(mus)):
-            mus[i] = tf.tile(tf.expand_dims(mus[i], axis=0), multiples=[5, 1, 1])
-            mus[i] = tf.reduce_mean(mus[i], axis=0)
+        #for i in range(len(mus)):
+        #    mus[i] = tf.tile(tf.expand_dims(mus[i], axis=0), multiples=[5, 1, 1])
+        #    mus[i] = tf.reduce_mean(mus[i], axis=0)
         #print("mus", mus)
         mu = self.activation(tf.concat(mus, axis=1), 'g')
 
@@ -1117,16 +1118,7 @@ def compute_losses(model_inputs, data, trainable_variables, par):
     #print("data.logits.x_p", data.logits.x_p[0])
     for i in range(par.seq_len):
 
-        if par.world_type in ['loop_laps', 'splitter', 'in_out_bound', 'tank', 'splitter_grieves'] + \
-                ['wood2000', 'frank2000', 'grieves2016', 'sun2020', 'nieh2021'] and par.use_reward:
-            # are we at a reward state?
-            # do we want to increase prediction if at no - or - rewarded state? I.e. x_mult for R and NR in splitters?
-            x_mult = tf.where(
-                tf.reduce_min(tf.abs(model_inputs.reward_pos - tf.expand_dims(positions[i], axis=1)), axis=1) == 0,
-                model_inputs.reward_val, 1.0)
-
-        else:
-            x_mult = 1.0
+        x_mult = 1.0
 
         # losses for each batch
         #print("data.logits.x_p[i]",data.logits.x_p[i])
@@ -1193,10 +1185,6 @@ def compute_losses(model_inputs, data, trainable_variables, par):
     if 'lp_reg' in par.which_costs:
         cost_all += lp_reg
         losses.lp_reg = lp_reg
-    if 'weight_reg' in par.which_costs:
-        losses.weight_reg = tf.add_n(
-            [tf.nn.l2_loss(v) for v in trainable_variables if 'bias' not in v.name]) * par.weight_reg_val / par.seq_len
-        cost_all += losses.weight_reg
 
     losses.train_loss = cost_all
 

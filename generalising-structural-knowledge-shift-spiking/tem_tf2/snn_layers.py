@@ -20,7 +20,7 @@ class LIFSpike(Layer): #(tf.keras.layers.Layer) not work. Why?
         self.threshold = threshold
         self.timewindow = timewindow
         
-    def build(self, input_shape):
+    #def build(self, input_shape):
         # initialize the weight
         #print("input_shape",input_shape, input_shape[-1])
         """w_init = tf.random_normal_initializer()
@@ -39,7 +39,7 @@ class LIFSpike(Layer): #(tf.keras.layers.Layer) not work. Why?
         #self.mem = tf.Variable(name='mem',
                              #initial_value=mem_init(shape=(self.units, )),
                              #trainable=False)
-        prev_output_init = tf.zeros_initializer()
+        #prev_output_init = tf.zeros_initializer()
         """self.prev_output = tf.Variable(name='mem',
                              initial_value=prev_output_init(shape=(self.units, )),
                              trainable=False)
@@ -53,7 +53,7 @@ class LIFSpike(Layer): #(tf.keras.layers.Layer) not work. Why?
         #print("inputs", inputs)
         #inputs = poisson_spike.generate_poisson_spikes(inputs, T=self.timewindow)
         #print("inputs",inputs)
-        batch_size = tf.shape(inputs)[0]
+        #batch_size = tf.shape(inputs)[0]
         #if self.prev_output is None:
         #    self.prev_output = tf.zeros([16, self.units], dtype=inputs.dtype)
         # pass the computation to the activation layer

@@ -59,19 +59,6 @@ if profile or debug:
     params.train_iters = 11
     params.save_walk = 1
 
-h = tf.constant(5)
-
-# 長さhのすべての要素が4のテンソルを作成
-tensor = tf.fill([h], 4)
-
-# h番目（インデックスh-1）を1にするためのインデックスをテンソルに
-index = tf.expand_dims(h - 1, axis=0)
-tf.print("III",index)
-
-# テンソルを更新してh番目を1に
-updated_tensor = tf.tensor_scatter_nd_update(tensor, [index], [1])
-
-tf.print("yyy",updated_tensor)
 
 @tf.function  # (experimental_compile=True)
 def train_step(model_, model_inputs_):
@@ -171,7 +158,7 @@ for train_i in range(params.train_iters): #for train_i in range(params.train_ite
         re_input.g, re_input.x_s, re_input.a_rnn, re_input.a_rnn_inv
 
     # Log training progress summary statistics
-    if train_i % params.sum_int == 0 and train_i > 0:
+    """if train_i % params.sum_int == 0 and train_i > 0:
         print("Log training progress summary statistics")
         accuracies = model_utils.compute_accuracies(inputs_tf.x, variables.pred, params)
         summaries = model_utils.make_summaries(losses, accuracies, scalings, variables, train_dict.curric_env,
@@ -200,9 +187,10 @@ for train_i in range(params.train_iters): #for train_i in range(params.train_ite
             "summary inference time {:.2f}, train_i={:.2f}, total_steps={:.2f}".format(time.time() - start_time,
                                                                                        train_i,
                                                                                        train_i * params.seq_len))
-
+    """
+    
     # Save model parameters which can be loaded later to analyse model 
-    print("Save model parameters")
+    """print("Save model parameters")
     if train_i % params.save_interval == 0:  # and train_i > 0:
         start_time = time.time()
         # data_utils.save_model_outputs(test_step, train_i, save_path, params)
@@ -211,7 +199,7 @@ for train_i in range(params.train_iters): #for train_i in range(params.train_ite
         model.save_weights(model_path + '/tem_' + str(train_i))
         logger_sums.info("save data time {:.2f}, train_i={:.2f}, total_steps={:.2f}".format(time.time() - start_time,
                                                                                             train_i,
-                                                                                            train_i * params.seq_len))
+    """                                                                                        train_i * params.seq_len))
 
     # save model
     # if train_i % params.save_model == 0:
