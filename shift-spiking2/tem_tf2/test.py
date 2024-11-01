@@ -93,7 +93,7 @@ tf.squeeze(tf.matmul(t_mat, tf.expand_dims(g_p, axis=2)))"""
 b = tf.constant(np.arange(13, 19, dtype=np.int32), shape=[2, 3, 1])
 c = tf.matmul(a, b)
 print("c",c)"""
-a = tf.constant([[1.0, 2.0], [3.0, 4.0]], dtype=tf.float32)
+"""a = tf.constant([[1.0, 2.0], [3.0, 4.0]], dtype=tf.float32)
 b = tf.constant([[2.0, 0.0], [1.0, 2.0]], dtype=tf.float32)
 
 # 初期化
@@ -113,4 +113,23 @@ def body(i, values):
 # ループ実行
 _, result = tf.while_loop(condition, body, [i, values])
 result = result.stack()  # TensorArrayをテンソルに変換
-print("r",result)
+print("r",result)"""
+"""tensor = tf.random.uniform((4, 2, 6))
+
+# 軸を入れ替えて形を変更
+reshaped_tensor = tf.transpose(tensor, perm=[1, 2, 0])  # 軸を入れ替え
+reshaped_tensor2 = tf.reshape(reshaped_tensor, (2, 6, 4))  # 形を変更
+
+print(reshaped_tensor,reshaped_tensor2) """
+def tf_repeat_axis_1(tensor, repeat, dim1):
+    dim0 = tf.shape(input=tensor)[0]
+    return tf.reshape(tf.tile(tf.reshape(tensor, (-1, 1)), (1, repeat)), (dim0, dim1))
+
+#tensor = tf.constant([1, 2, 3])
+tensor = tf.random.uniform((3, 2))
+repeat = 2
+dim1 = 4
+print("1",tf.reshape(tensor, (-1, 1)))
+print("2",tf.tile(tf.reshape(tensor, (-1, 1)), (1, repeat)))
+result = tf_repeat_axis_1(tensor, repeat, dim1)
+print(result)

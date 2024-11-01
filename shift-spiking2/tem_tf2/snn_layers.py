@@ -10,7 +10,7 @@ tau = 0.2
 
 class LIFSpike(Layer): #(tf.keras.layers.Layer) not work. Why?
     # add an activation paramter
-    def __init__(self, units, activation=None, name=None, threshold=0.5, timewindow=10, **kwargs):
+    def __init__(self, units, activation=None, name=None, threshold=0.5, timewindow=4, **kwargs):
         super(LIFSpike, self).__init__(**kwargs)
         self.units = units
         #self.dense = tf.keras.layers.Dense(units)
@@ -25,7 +25,7 @@ class LIFSpike(Layer): #(tf.keras.layers.Layer) not work. Why?
         #print("input_shape",input_shape, input_shape[-1])
         w_init = tf.random_normal_initializer()
         self.w = tf.Variable(name='kernel',
-                             initial_value=w_init(shape=(input_shape[-1], self.units)),
+                             initial_value=w_init(shape=(input_shape[1], self.units)),
                              trainable=True)
         
         # intialize the bias
@@ -74,11 +74,39 @@ class LIFSpike(Layer): #(tf.keras.layers.Layer) not work. Why?
             inputs3 = inputs"""
         #print("inputs2", inputs2)
         #input_transformed = self.dense(inputs)
-        input_transformed = tf.matmul(inputs, self.w) + self.b
+        #print("INPU",inputs)
+        if len(tf.shape(inputs))==3:
+            lis = []
+            lis_spike = []
+            #print("IH",inputs,tf.shape(inputs)[2])
+            #inputs = tf.reduce_mean(inputs, axis=2)
+            for i in range(self.timewindow):
+                #print("IIIIIIII",i)
+                input_transformed = tf.matmul(inputs[:,:,i], self.w) + self.b 
+                
+                #print("LIS0",lis[i])
+                #tf.print("IN",input_transformed)
+                if i>0:
+                    input_transformed = tf.add(input_transformed, lis[i-1]*lis_spike[i-1])
+                lis.append(input_transformed)
+                lis_spike.append(tf.where(input_transformed > self.threshold, 1.0, 0.0))
+                #tf.print("IN2",input_transformed)
+                #tf.print("SPI",lis_spike)
+            #print("INP", inputs)
+            #inputs = tf.reduce_mean(inputs, axis=2)
+            #print("LIS",lis)
+            input_transformed2 = tf.convert_to_tensor(lis)
+            input_transformed = tf.transpose(input_transformed2, perm=[1, 2, 0])
+            #print("LIS2", input_transformed2)
+        else:
+            input_transformed = tf.matmul(inputs, self.w) + self.b
+        #print("it",input_transformed)
+        #if len(tf.shape(input_transformed))==3:
+        #    input_transformed = tf.reduce_mean(input_transformed, axis=2)
         #input_transformed2 = self.dense(inputs2)
         #print("input_transformed", input_transformed)
         #print("self.prev_output", self.prev_output)
-        #prev_output = tf.zeros([inputs.shape[0], self.units])
+        #self.prev_output = tf.zeros([inputs.shape[0], self.units])
         #prev_output2 = tf.zeros([inputs2.shape[0], self.units, inputs2.shape[2]])
         #print("P",prev_output2)
         #binary_prev_output = tf.zeros([inputs.shape[0], self.units])

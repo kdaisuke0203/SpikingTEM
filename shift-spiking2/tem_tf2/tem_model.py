@@ -20,7 +20,9 @@ class TEM(tf.keras.Model):
         super(TEM, self).__init__()
 
         self.par = par
+        self.lis = []
         self.spike_step = 4
+        self.ii = 0
         self.precision = tf.float32 if 'precision' not in self.par else self.par.precision
         self.mask = tf.constant(par.mask_p, dtype=self.precision, name='mask_p')
         self.mask_g = tf.constant(par.mask_g, dtype=self.precision, name='mask_g')
@@ -116,7 +118,9 @@ class TEM(tf.keras.Model):
             # single step
             #if len(tf.shape(g_t))==2:
                 #g_t = tf.tile(tf.expand_dims(g_t, axis=0), multiples=[5, 1, 1])
-            print("g_t",g_t)
+            #print("g_t",g_t)
+            self.lis = []
+            
             g_t, x_t, variable_dict, memories_dict = self.step(inputs, g_t, x_t, variable_dict, memories_dict, i,
                                                                ta_mat.read(i))
 
@@ -145,6 +149,7 @@ class TEM(tf.keras.Model):
 
         # generative transition
         g_gen, g2g_all = self.gen_g(g_t, t_mat, seq_pos)
+        #print("G2G",g2g_all)
 
         # infer hippocampus (p) and entorhinal (g)
         mem_inf = self.mem_step(memories_dict, 'inf', i + mem_offset)
@@ -153,8 +158,13 @@ class TEM(tf.keras.Model):
         # generate sensory
         mem_gen = self.mem_step(memories_dict, 'gen', i + mem_offset)
         x_all, x_logits_all, p_g = self.generation(p, g, g_gen, mem_gen)
+        #print("X?ALL",x_all)
 
         # Hebbian update - equivalent to the matrix updates, but implemented differently for computational ease
+        if len(tf.shape(p))==3:
+            p = tf.reduce_mean(p, axis=2)
+        if len(tf.shape(g))==3:
+            g = tf.reduce_mean(g, axis=2)
         memories_dict = self.hebbian(p, p_g, p_x, memories_dict, i + mem_offset)
 
         # Collate all variables for losses and saving representations
@@ -187,6 +197,7 @@ class TEM(tf.keras.Model):
 
         # infer entorhinal
         g, p_x = self.infer_g(g2g_all, x2p, x, memories)
+        #print("G,PG",g,p_x)
 
         # infer hippocampus
         p = self.infer_p(x2p, g)
@@ -198,13 +209,18 @@ class TEM(tf.keras.Model):
         """
         Generate all variabes
         """
+        #print("GPPP",p,g)
         x_p, x_p_logits = self.f_x(p)
+        #print("X_P",x_p,x_p_logits)
 
         p_g = self.gen_p(g, memories)
         x_g, x_g_logits = self.f_x(p_g)
+        #print("X_G",x_g, x_g_logits,g_gen)
 
         p_gt = self.gen_p(g_gen, memories)
+        #print("P_GT",p_gt)
         x_gt, x_gt_logits = self.f_x(p_gt)
+        #print("X_GT",x_gt,x_gt_logits)
 
         x = model_utils.DotDict({'x_p': x_p,
                                  'x_g': x_g,
@@ -260,12 +276,17 @@ class TEM(tf.keras.Model):
 
         p_x = None
         mu, sigma = g2g_all
+        #if len(tf.shape(mu))==2:
+        #    mu =  tf.tile(tf.expand_dims(mu, axis=2), multiples=[1,1,self.spike_step])
+        if len(tf.shape(sigma))==3:
+            sigma = tf.reduce_mean(sigma, axis=2)
+        #print("mu,SIGMA",mu,sigma)
 
         # Inference - factorised posteriors
         if 'p' in self.par.infer_g_type:
             mu_p2g, sigma_p2g, p_x = self.p2g(mu_x2p, x, memories)
-            _, mu, _, sigma = model_utils.combine2(mu, mu_p2g, sigma, sigma_p2g, self.batch_size)
-
+            _, mu, _, sigma = model_utils.combine2(mu, mu_p2g, sigma, sigma_p2g, self.batch_size, self.spike_step)
+            #print("MU2", mu,sigma)
         return mu, p_x
 
     @model_utils.define_scope
@@ -278,11 +299,15 @@ class TEM(tf.keras.Model):
         """
         # grid input to hippocampus
         g2p = self.g2p(g)
+        #print("GGGGG",g2p,x2p)
+        if len(tf.shape(x2p))==2:
+            x2p = tf.tile(tf.expand_dims(x2p, axis=2), multiples=[1,1,self.spike_step])
         # hippocampus is conjunction between grid input and sensory input
         p = g2p * x2p
 
         # apply activation
         p = self.activation(p, 'p')
+        #print("PPP",p)
 
         return p
 
@@ -300,27 +325,56 @@ class TEM(tf.keras.Model):
         p_x = self.attractor(x2p, memories)
 
         # sum over senses
-        mu_attractor_sensum = tf.reduce_mean(
-            tf.reshape(p_x, (self.batch_size, self.par.tot_phases, self.par.s_size_comp)), axis=2)
+        if len(tf.shape(p_x))==2:
+            p_x = tf.tile(tf.expand_dims(p_x, axis=2), multiples=[1,1,self.spike_step])
 
-        mu_attractor_sensum_ = tf.split(mu_attractor_sensum, num_or_size_splits=self.par.n_phases_all, axis=1)
+        #print("PX",p_x,tf.reshape(p_x, (self.batch_size, self.par.tot_phases, self.par.s_size_comp)))
+        if len(tf.shape(p_x))==3:
+            mu_attractor_sensum = tf.reduce_mean(
+                tf.reshape(p_x, (self.batch_size, self.par.tot_phases, self.par.s_size_comp, self.spike_step)), axis=2)
+            #print("MU_3",mu_attractor_sensum, self.par.n_phases_all)
+            mu_attractor_sensum_ = tf.split(mu_attractor_sensum, num_or_size_splits=self.par.n_phases_all, axis=1)
+        else:
+            mu_attractor_sensum = tf.reduce_mean(
+                tf.reshape(p_x, (self.batch_size, self.par.tot_phases, self.par.s_size_comp)), axis=2)
+            #print("MU_",mu_attractor_sensum, self.par.n_phases_all)
+            mu_attractor_sensum_ = tf.split(mu_attractor_sensum, num_or_size_splits=self.par.n_phases_all, axis=1)
 
         mus = [self.p2g_mu[f](x) for f, x in enumerate(mu_attractor_sensum_)]
         mu = self.activation(tf.concat(mus, axis=1), 'g')
-
+        #print("MMU",mus,mu)
         # logsig based on whether memory is a good one or not - based on length of retrieved memory
         x_hat, _ = self.f_x(p_x)
+        if len(tf.shape(x))==2:
+            x = tf.tile(tf.expand_dims(x, axis=2), multiples=[1,1,self.spike_step])
+        #print("HAT",x_hat,x)
+
         err = model_utils.squared_error(x, x_hat, keepdims=True)  # why squared error and not cross-entropy??
         err = tf.stop_gradient(err)
+        if len(tf.shape(err))==2:
+            err = tf.tile(tf.expand_dims(err, axis=2), multiples=[1,1,self.spike_step])
+        #for x in mus:
+        #    print("ff",tf.reduce_sum(x ** 2, keepdims=True, axis=1))
+        #    print("dd",[tf.reduce_sum(x ** 2, keepdims=True, axis=1), err])
         logsig_input = [tf.stop_gradient(tf.concat([tf.reduce_sum(x ** 2, keepdims=True, axis=1), err], axis=1)) for x
                         in mus]
+        
+        #print("LOG?I",logsig_input)
 
         logsigmas = [self.p2g_logsig[i](x) for i, x in enumerate(logsig_input)]
         logsigma = tf.concat(logsigmas, axis=1) * self.par.logsig_ratio + self.par.logsig_offset
 
         # ignore p2g at beginning when memories crap
         sigma = tf.exp(logsigma) + (1 - self.scalings.p2g_use) * self.par.p2g_sig_val
-
+        #print("SSS",sigma)
+        if len(tf.shape(sigma))==3:
+            sigma=tf.reduce_mean(sigma, axis=2)
+        #print("SD",sigma)
+        if len(tf.shape(mu))==3:
+            mu = tf.reduce_mean(mu,axis=2)
+        #print("SS",mu)
+        if len(tf.shape(p_x))==3:
+            p_x=tf.reduce_mean(p_x,axis=2)
         return mu, sigma, p_x
 
     @model_utils.define_scope
@@ -338,6 +392,7 @@ class TEM(tf.keras.Model):
             x_comp = x_two_hot
         else:
             # otherwise compress one-hot encoding
+            #print("X",x)
             x_comp = self.MLP_c(x)
 
         # temporally filter
@@ -357,10 +412,10 @@ class TEM(tf.keras.Model):
         :return: input to place cell layer
         """
         g2p_ = self.g_downsample(g)
-
+        #print("G2P_",g2p_)
         # repeat to get same dimension as hippocampus - same as applying W_repeat
         g2p = model_utils.tf_repeat_axis_1(g2p_, self.par.s_size_comp, self.par.p_size)
-
+        #print("G2p",g2p)
         return g2p
 
     @model_utils.define_scope
@@ -425,8 +480,10 @@ class TEM(tf.keras.Model):
 
         # grid input to hippocampus
         g2p = self.g2p(g)
-
+        #print("RRRRRRRR",g2p)
         # retrieve memory via attractor network
+        if len(tf.shape(g2p))==3:
+            g2p =tf.reduce_mean(g2p,axis=2)
         retrieved_mem = self.attractor(g2p, memories)
 
         return retrieved_mem
@@ -449,9 +506,16 @@ class TEM(tf.keras.Model):
         mu_prior, sigma_prior = self.g_prior()
 
         mu_inf_, sigma_inf_ = self.g2g(g, t_mat, name='inf')
+        
+        if len(tf.shape(sigma_prior))==2:
+            sigma_prior = tf.tile(tf.expand_dims(sigma_prior, axis=2), multiples=[1,1,self.spike_step])
+        if len(tf.shape(seq_pos_))==2:
+            seq_pos_2 = tf.tile(tf.expand_dims(seq_pos_, axis=2), multiples=[1,1,self.spike_step])
 
+        #print("SIII",sigma_inf_, sigma_prior,seq_pos_)
+        #print("ww",tf.where(seq_pos_2 > 0, sigma_inf_, sigma_prior))
         return tf.where(seq_pos_ > 0, mu_gen, mu_prior), [
-            tf.where(seq_pos_ > 0, mu_inf_, mu_prior), tf.where(seq_pos_ > 0, sigma_inf_, sigma_prior)]
+            tf.where(seq_pos_ > 0, mu_inf_, mu_prior), tf.where(seq_pos_2 > 0, sigma_inf_, sigma_prior)]
 
     @model_utils.define_scope
     def g2g(self, g, t_mat, name=''):
@@ -462,26 +526,43 @@ class TEM(tf.keras.Model):
         :param name: whether generative of inference
         :return:
         """
-
+        #if len(tf.shape(g))==2:
+        #    g = tf.tile(tf.expand_dims(g, axis=0), multiples=[self.spike_step,1,1])
         # transition update
         update = self.get_g2g_update(g, t_mat)
+        #print("g5", g, update)
         # add on update to current representation
+        #g = tf.transpose(g, perm=[1, 2, 0])
         mu = update + g
         # apply activation
+        #print("mu",mu)
         mu = self.activation(mu, 'g')
+        #if len(tf.shape(g))==2:
+        #    g = tf.tile(tf.expand_dims(g, axis=2), multiples=[1,1,self.spike_step])
+        #    print("G",g)
 
         # get variance
         gs = tf.split(tf.stop_gradient(g), num_or_size_splits=self.par.n_grids_all, axis=1)
-
+        #print("gs",gs[0],gs[1],len(tf.shape(gs[2])))
         if name == 'gen':
             logsig = 0.0  # [self.g2g_logsig_gen[f](x) for f, x in enumerate(gs)]
         elif name == 'inf':
+            #print("SS",tf.shape(gs[1]))
+            if len(tf.shape(gs[0]))==2:
+                #print("QQ")
+                for f, x in enumerate(gs):
+                    #print("ff",f,x)
+                    gs[f] = tf.tile(tf.expand_dims(x, axis=2), multiples=[1,1,self.spike_step])
+                #print("GS",gs)
+
             logsigs = [self.g2g_logsig_inf[f](x) for f, x in enumerate(gs)]
+            #print("LOG",logsigs)
             logsig = tf.concat(logsigs, axis=1) * self.par.logsig_ratio + self.par.logsig_offset
         else:
             raise ValueError('Incorrect name given')
 
         sigma = tf.exp(logsig)
+        #print("SIG",sigma)
 
         return mu, sigma
 
@@ -517,30 +598,36 @@ class TEM(tf.keras.Model):
         #print("tmat",t_mat)
         #tf.print("tmat",t_mat, summarize=-1)
         #print("matmul", tf.matmul(t_mat, tf.expand_dims(g_p, axis=2)))
-        if len(tf.shape(g_p))==2:
-                g_p = tf.tile(tf.expand_dims(g_p, axis=0), multiples=[self.spike_step, 1, 1])
-        i = tf.constant(0)
+        #if len(tf.shape(g_p))==2:
+        #        g_p = tf.tile(tf.expand_dims(g_p, axis=0), multiples=[self.spike_step, 1, 1])
+        #i = 0#tf.constant(0)
         spikes_his = []
         def condition(i, values):
-            return tf.less(i,self.spike_step)
-            #return i > 5
+            #return tf.less(i,self.spike_step)
+            return i < self.spike_step
 
         def body(i, values):
-            print("tf.matmul",tf.matmul(t_mat, tf.expand_dims(g_p[i,:,:], axis=2))) #shape=(env, cell, 1)
+            #print("tf.matmul",tf.matmul(t_mat, tf.expand_dims(g_p[i,:,:], axis=2))) #shape=(env, cell, 1)
             #values = tf.add(values, )
             #values[i,:,:] = tf.transpose(tf.tile(tf.matmul(t_mat, tf.expand_dims(g_p[i,:,:], axis=2)) , multiples=[1, 1, self.spike_step]), perm=[2, 0, 1])
+            
             values = tf.transpose(tf.tile(tf.matmul(t_mat, tf.expand_dims(g_p[i,:,:], axis=2)) , multiples=[1, 1, self.spike_step]), perm=[2, 0, 1])
-            original_tensor = tf.squeeze(tf.matmul(t_mat, tf.expand_dims(g_p[i,:,:], axis=2)))
-            zero_tensor = tf.zeros_like(original_tensor)
-            tensors = [zero_tensor] * self.spike_step
-            print("tf.cast(i, tf.int32)",tf.cast(i, tf.int32))
-            tensors[tf.cast(i, tf.int32)] = original_tensor
-            print("V",tensors)
+            values0 = tf.squeeze(tf.matmul(t_mat, tf.expand_dims(g_p[i,:,:], axis=2)))
+            #original_tensor = tf.squeeze(tf.matmul(t_mat, tf.expand_dims(g_p[i,:,:], axis=2)))
+            #zero_tensor = tf.zeros_like(original_tensor)
+            #tensors = [zero_tensor] * self.spike_step
+            #print("tf.cast(i, tf.int32)",tf.cast(i, tf.int32))
+            #self.lis.append(len(tf.shape(t_mat)))
+            #print("W",len(self.lis))
+            self.lis.append(values0)
+            #tensors[tf.cast(i, tf.int32)] = original_tensor
+            #print("lis0",self.lis)
+            #print("V",tensors)
             #spikes_his.append(values)
             #print("i",g_p[i,:,:])
             #i = tf.add(i, 1)
-            tf.print("i",i)
             i += 1
+            #tf.print("i",i)
             return i, values
 
         if len(tf.shape(g_p))==3:
@@ -549,15 +636,23 @@ class TEM(tf.keras.Model):
             #print("g_p[i,:,0]",g_p[0,:,:])
             #for i in range(tf.shape(g_p)[0]):
                 #update.append(tf.squeeze(tf.matmul(t_mat, tf.expand_dims(g_p[i,:,:], axis=2))))
-            _, update = tf.while_loop(condition, body, [i, values])
+            i=0
+            #_, update = tf.while_loop(condition, body, [i, values])
+            reshaped_tensor = tf.transpose(g_p, perm=[1, 2, 0])  # 軸を入れ替え
+            #print("reshaped_tensor",reshaped_tensor)
+            #reshaped_tensor = reshaped_tensor.reshape(2, 6, 4)
+            update = tf.squeeze(tf.matmul(t_mat, reshaped_tensor))
+            #print("update",update)
+            #print("lis2",self.lis)
         else:
             update = tf.squeeze(tf.matmul(t_mat, tf.expand_dims(g_p, axis=2)))
         
         #print("ddd",spikes_his)
+        #print("lis",self.lis[2])
         #spikes_his = tf.convert_to_tensor(spikes_his)
-        tf.print("update",update)
-        if len(tf.shape(update))==3:
-            update = tf.reduce_mean(update, axis=0)
+        #tf.print("update",update)
+        #if len(tf.shape(update))==3:
+        #    update = tf.reduce_mean(update, axis=2)
         return update
 
     @model_utils.define_scope
@@ -566,18 +661,26 @@ class TEM(tf.keras.Model):
         :param p: place cells
         :return: sensory predictions
         """
+        if len(tf.shape(p))==3:
+            p = tf.reduce_mean(p,axis=2)
         ps = tf.split(value=p, num_or_size_splits=self.par.n_place_all, axis=1)
-
+        #print("PPSS",ps)
+        #if len(tf.shape(ps))==3:
+            #ps = tf.reduce_mean(ps, axis=2)
         # same as W_tile^T
         x_s = tf.reduce_sum(
             tf.reshape(ps[self.par.prediction_freq], (self.batch_size, self.par.n_phases_all[
                 self.par.prediction_freq], self.par.s_size_comp)), axis=1)
-
+        #print("X_S",x_s)
         x_logits_ = self.w_x * x_s + self.b_x
         # decompress sensory
+        print("QQQ",x_logits_)
+        if len(tf.shape(x_logits_))==2:
+            x_logits_ = tf.tile(tf.expand_dims(x_logits_, axis=2), multiples=[1,1,self.spike_step])
         x_logits = self.MLP_c_star(x_logits_)
 
         x = tf.nn.softmax(x_logits)
+        print("AX",x,x_logits)
 
         return x, x_logits
 
@@ -732,11 +835,18 @@ class TEM(tf.keras.Model):
 
     @model_utils.define_scope
     def apply_function_freqs(self, x, act, dim):
+        #print("F", x[2])
         if isinstance(x, list):
+            #for f in range(self.par.n_freq):
+                #print("F",f)
             return [act(x[f], f) for f in range(self.par.n_freq)]
         elif isinstance(x, tf.Tensor):
+            #print("XX",x)
             xs = tf.split(value=x, num_or_size_splits=dim, axis=1)
+            #print("DS",xs)
             # apply activation to each frequency separately
+            #for f in range(self.par.n_freq):
+                #print("F",f,xs)
             xs = [act(xs[f], f) for f in range(self.par.n_freq)]
             return tf.concat(xs, axis=1)
         else:
@@ -1019,8 +1129,19 @@ def compute_losses(model_inputs, data, trainable_variables, par):
             x_mult = 1.0
 
         # losses for each batch
+        #print("xs[i], data.logits.x_p[i]",xs,xs[i], data.logits.x_p[i])
+        #if len(tf.shape(xs[i]))==2:
+        #    xs = tf.tile(tf.expand_dims(xs, axis=3), multiples=[1, 1, 1, 4])
+        if len(tf.shape(data.logits.x_p[i]))==3:
+            data.logits.x_p = tf.reduce_mean(data.logits.x_p, axis=3)
+        #print("XS,",xs)
         lx_p_ = model_utils.sparse_softmax_cross_entropy_with_logits(xs[i], data.logits.x_p[i])
+        #print("XG",data.logits.x_g, lx_p_)
+        if len(tf.shape(data.logits.x_g[i]))==3:
+            data.logits.x_g = tf.reduce_mean(data.logits.x_g, axis=3)
         lx_g_ = model_utils.sparse_softmax_cross_entropy_with_logits(xs[i], data.logits.x_g[i])
+        if len(tf.shape(data.logits.x_gt[i]))==3:
+            data.logits.x_gt = tf.reduce_mean(data.logits.x_gt, axis=3)
         lx_gt_ = model_utils.sparse_softmax_cross_entropy_with_logits(xs[i], data.logits.x_gt[i])
 
         lp_ = model_utils.squared_error(data.p.p[i], data.p.p_g[i])
@@ -1036,7 +1157,7 @@ def compute_losses(model_inputs, data, trainable_variables, par):
         batch_vis = tf.reduce_sum(s_vis) + eps
         # normalise for bptt sequence length
         norm = 1.0 / (batch_vis * par.seq_len)
-
+        #print("LL",lx_p_,s_vis,x_mult)
         lx_p += tf.reduce_sum(lx_p_ * s_vis * x_mult) * norm
         lx_g += tf.reduce_sum(lx_g_ * s_vis * x_mult) * norm
         lx_gt += tf.reduce_sum(lx_gt_ * s_vis * x_mult) * norm

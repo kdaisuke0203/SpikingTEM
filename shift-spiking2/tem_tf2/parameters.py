@@ -52,11 +52,12 @@ def default_params(width=None, height=None, world_type=None, batch_size=None):
     params.s_size_comp = 10
 
     # numbers of variables for each frequency
-    params.n_grids_all = [3, 2, 1] # [30, 30, 24, 18, 18]
+    params.n_grids_all = [30, 30, 24] # [30, 30, 24, 18, 18]
     params.grid2phase = 2
     params.n_phases_all = [int(n_grid / params.grid2phase) for n_grid in params.n_grids_all]
     params.tot_phases = sum(params.n_phases_all)
     params.n_freq = len(params.n_phases_all)
+    #print("fff",params.n_freq)
     params.g_size = sum(params.n_grids_all)
     params.n_place_all = [p * params.s_size_comp for p in params.n_phases_all]
     params.p_size = sum(params.n_place_all)

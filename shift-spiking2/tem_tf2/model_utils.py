@@ -78,8 +78,14 @@ class DotDict(dict):
             return data
 
 
-def combine2(mu1, mu2, sigma1, sigma2, batch_size):
+def combine2(mu1, mu2, sigma1, sigma2, batch_size, steps):
+    if len(tf.shape(mu1))==2:
+        mu1 = tf.tile(tf.expand_dims(mu1, axis=2), multiples=[1,1,steps])
+        mu2 = tf.tile(tf.expand_dims(mu2, axis=2), multiples=[1,1,steps])
+        sigma1 = tf.tile(tf.expand_dims(sigma1, axis=2), multiples=[1,1,steps])
+        sigma2 = tf.tile(tf.expand_dims(sigma2, axis=2), multiples=[1,1,steps])
     out_size = tf.shape(input=mu1)[1]
+    #print("SIZ",tf.shape(input=mu1)[1],tf.shape(mu1)[1])
     inv_sigma_sq1 = tf.truediv(1.0, tf.square(sigma1))
     inv_sigma_sq2 = tf.truediv(1.0, tf.square(sigma2))
 
@@ -87,7 +93,7 @@ def combine2(mu1, mu2, sigma1, sigma2, batch_size):
     sigma = tf.exp(logsigma)
 
     mu = tf.square(sigma) * (mu1 * inv_sigma_sq1 + mu2 * inv_sigma_sq2)
-    e = tf.random.normal((batch_size, out_size), mean=0, stddev=1)
+    e = tf.random.normal((batch_size, out_size, tf.shape(mu1))[2], mean=0, stddev=1)
     return mu + sigma * e, mu, logsigma, sigma
 
 
@@ -96,7 +102,10 @@ def squared_error(t, o, keepdims=False):
 
 
 def sparse_softmax_cross_entropy_with_logits(labels, logits):
-    labels = tf.argmax(input=labels, axis=1)
+    if len(tf.shape(labels))==3:
+        labels = tf.argmax(input=labels, axis=2)
+    else:
+        labels = tf.argmax(input=labels, axis=1)
     return tf.nn.sparse_softmax_cross_entropy_with_logits(labels=labels, logits=logits)
 
 
@@ -108,7 +117,13 @@ def acc_tf(real, pred):
 
 def tf_repeat_axis_1(tensor, repeat, dim1):
     dim0 = tf.shape(input=tensor)[0]
-    return tf.reshape(tf.tile(tf.reshape(tensor, (-1, 1)), (1, repeat)), (dim0, dim1))
+    #print("111",tf.reshape(tensor, (-1, 1)))
+    #print("222",tf.tile(tf.reshape(tensor, (-1, 1)), (1, repeat)))
+    if len(tf.shape(tensor))==3:
+        dim2 = tf.shape(input=tensor)[2]
+        return tf.reshape(tf.tile(tf.reshape(tensor, (-1, 1)), (1, repeat)), (dim0, dim1,dim2))
+    else:
+        return tf.reshape(tf.tile(tf.reshape(tensor, (-1, 1)), (1, repeat)), (dim0, dim1))
 
 
 def inputs_2_tf(input_vars, input_hebb, scalings, freqs):
