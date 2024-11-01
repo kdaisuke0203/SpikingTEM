@@ -277,7 +277,7 @@ def prepare_data_maps(data, prev_cell_maps, prev_acc_maps, positions, pars):
     gs, ps, ps_gen, x_s, position, acc_st = data
     gs_all, ps_all, ps_gen_all, xs_all = prev_cell_maps
     accs_x_to, accs_x_from = prev_acc_maps
-
+    print("GGGGGGGGGG",gs)
     g1s = np.transpose(np.array(cp.deepcopy(gs)), [1, 2, 0])
     p1s = np.transpose(np.array(cp.deepcopy(ps)), [1, 2, 0])
     p1s_gen = np.transpose(np.array(cp.deepcopy(ps_gen)), [1, 2, 0])
@@ -307,9 +307,12 @@ def prepare_cell_timeseries(data, prev_data, pars):
     gs, ps, pos, xs, xs_gt = data
     gs_, ps_, pos_, xs_, xs_gt_ = prev_data
     # convert to batch_size x cells x timesteps
+    #print("GGGGDD",gs)
+    #g1s = np.transpose(np.array(cp.deepcopy(gs)), [1, 2, 0])
     g1s = np.transpose(np.array(cp.deepcopy(gs)), [1, 2, 0])
     p1s = np.transpose(np.array(cp.deepcopy(ps)), [1, 2, 0])
     g1s = g1s[:pars.n_envs_save, :, :]
+    #print("GGGGDD22",g1s)
     p1s = p1s[:pars.n_envs_save, :, :]
 
     xgt1s = np.transpose(np.array(cp.deepcopy(xs_gt)), [1, 2, 0])

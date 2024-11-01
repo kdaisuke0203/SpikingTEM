@@ -108,7 +108,7 @@ class TEM(tf.keras.Model):
         if len(tf.shape(inputs.d))==3:
             inputs_d = tf.tile(tf.expand_dims(inputs.d, axis=3), multiples=[1,1,1,self.spike_step])
         ta_mat = self.precomp_trans(inputs_d)
-        #print("SDD",ta_mat)
+        print("SDD",ta_mat)
 
         # book-keeping
         g_t, x_t = inputs.g, inputs.x_
@@ -170,20 +170,7 @@ class TEM(tf.keras.Model):
         if len(tf.shape(g))==3:
             g = tf.reduce_mean(g, axis=2)
         memories_dict = self.hebbian(p, p_g, p_x, memories_dict, i + mem_offset)
-        #print("ALL",p,p_g,p_x,g,g_gen,x_s,x_all,x_logits_all)
-        if len(tf.shape(x_all['x_p']))==3:
-            x_all['x_p'] = tf.reduce_mean(x_all['x_p'], axis=2)
-        if len(tf.shape(x_all['x_g']))==3:
-            x_all['x_g'] = tf.reduce_mean(x_all['x_g'], axis=2)
-        if len(tf.shape(x_all['x_gt']))==3:
-            x_all['x_gt'] = tf.reduce_mean(x_all['x_gt'], axis=2)
-        if len(tf.shape(x_logits_all['x_p']))==3:
-            x_logits_all['x_p'] = tf.reduce_mean(x_logits_all['x_p'], axis=2)
-        if len(tf.shape(x_logits_all['x_g']))==3:
-            x_logits_all['x_g'] = tf.reduce_mean(x_logits_all['x_g'], axis=2)
-        if len(tf.shape(x_logits_all['x_gt']))==3:
-            x_logits_all['x_gt'] = tf.reduce_mean(x_logits_all['x_gt'], axis=2)
-        #print("ALL",p,p_g,p_x,g,g_gen,x_s,x_all,x_logits_all)
+
         # Collate all variables for losses and saving representations
         var_updates = [[['p', 'p'], p],
                        [['p', 'p_g'], p_g],
@@ -1040,13 +1027,13 @@ class TEM(tf.keras.Model):
         # alternatively could pre-compute all types of actions and then use control flow
         ta_mat = tf.TensorArray(self.precision, size=seq_len, clear_after_read=False,
                                 name='t_mat' + ('' if name is None else name))
-        #print("dir",dirs)
+        print("dir",dirs)
         ds = tf.unstack(dirs, axis=0)
-        #print("DS",ds)
+        print("DS",ds)
         for j, d in enumerate(ds):
             # Get transition matrix from action/relation
             new_ta = self.get_transition(d)
-            #print("NW",new_ta)
+            print("NW",new_ta)
             if len(tf.shape(new_ta))==4:
                 new_ta = tf.reduce_mean(new_ta, axis=3)
             # And write transitions for this iteration to ta_mat

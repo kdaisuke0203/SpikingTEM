@@ -194,7 +194,7 @@ for train_i in range(params.train_iters): #for train_i in range(params.train_ite
         print("Save model parameters")
         start_time = time.time()
         #data_utils.save_model_outputs(model, test_step, train_i, save_path, params)
-        #data_utils.save_model_outputs(model, inputs_tf, train_i, save_path, params)
+        data_utils.save_model_outputs(model, inputs_tf, train_i, save_path, params)
 
         # save model checkpoint
         model.save_weights(model_path + '/tem_' + str(train_i))
