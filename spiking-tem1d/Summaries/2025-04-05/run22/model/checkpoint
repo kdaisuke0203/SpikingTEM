@@ -1,0 +1,2 @@
+model_checkpoint_path: "tem_1999"
+all_model_checkpoint_paths: "tem_1999"
