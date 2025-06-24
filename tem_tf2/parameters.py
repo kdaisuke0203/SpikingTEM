@@ -9,7 +9,7 @@ from scipy.special import comb
 import itertools
 from model_utils import DotDict as Dd
 
-wi = 7
+wi = 6
 env_width = [wi]
 
 
@@ -34,7 +34,7 @@ def default_params(width=None, height=None, world_type=None, batch_size=None):
     params.s_size = 15 #45
     params.asyncrounous_envs = True
     params = get_env_params(params, width, height=height)
-    params.use_reward = True
+    params.use_reward = False#True
 
     # DATA / SAVE / SUMMARY params params
 
@@ -50,15 +50,17 @@ def default_params(width=None, height=None, world_type=None, batch_size=None):
     params.save_model = 5 * params.save_interval
 
     # MODEL params
-    params.spike_windows = 1
+    params.spike_windows = 5
     params.k = 1
+    params.d_repeat = 1
     params.infer_g_type = 'g_p'  # 'g'
-    params.two_hot = True #False
-    params.s_size_comp = 10 #10
+    params.two_hot = True#False
+    params.stdp = False
+    params.s_size_comp = 8 #10
 
     # numbers of variables for each frequency
-    params.n_grids_all = [40] #[30, 30, 24, 18, 18]
-    params.grid2phase = 4 #3
+    params.n_grids_all = [50] #[30, 30, 24, 18, 18]
+    params.grid2phase = 3 #3
     params.n_phases_all = [int(n_grid / params.grid2phase) for n_grid in params.n_grids_all]
     params.tot_phases = sum(params.n_phases_all)
     params.n_freq = len(params.n_phases_all)
@@ -83,7 +85,7 @@ def default_params(width=None, height=None, world_type=None, batch_size=None):
                                        combins_table(params.s_size_comp, 2), params.s_size_comp)
 
     # TRAINING params
-    params.train_iters = 30000 #2000000
+    params.train_iters = 20001 #2000000
     params.train_on_visited_states_only = True
     params.learning_rate_max = 9.3e-4#9.3e-4
     params.learning_rate_min = 8e-5

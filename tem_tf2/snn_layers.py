@@ -27,15 +27,16 @@ def SpikeFunction(v_scaled, dampening_factor):
 
     return tf.identity(z_, name="SpikeFunction"), grad
 
-threshold = 0.0
+threshold = 0.05
+v_min = 0.0
 
 @tf.custom_gradient
 def spike_function(x):
     def grad(dy):
         sigma = 1.0
-        dampening_factor = 0.1
-        surrogate_grad = tf.exp(-tf.square(x) / (2 * sigma**2)) / (sigma * tf.sqrt(2.0 * tf.constant(math.pi)))
-        #surrogate_grad = dampening_factor * tf.maximum(0.,1 - tf.abs(x))
+        dampening_factor = 20
+        #surrogate_grad = tf.exp(-tf.square(x) / (2 * sigma**2)) / (sigma * tf.sqrt(2.0 * tf.constant(math.pi)))
+        surrogate_grad = dampening_factor * tf.maximum(0.,1 - tf.abs(x))
         return dy * surrogate_grad
     out = tf.cast(x > 0.0, tf.float32)
     return out, grad
@@ -59,16 +60,14 @@ class SpikingDense(tf.keras.layers.Layer):
         self.w = self.add_weight(shape=(self.input_size, self.output_size*self.k),
                                  initializer='glorot_uniform',
                                  trainable=True, name='spike_weights')
-        self.b = self.add_weight(  # <-- バイアス追加
-                            shape=(self.output_size * self.k,),
-                            initializer='zeros',
-                            trainable=True,
-                            name='spike_bias'
-                        )
-        self.Bernoulli_weights = self.add_weight(
+        self.b = self.add_weight(shape=(self.output_size*self.k),
+                                 initializer='zeros',
+                                 trainable=True, name='spike_bias')
+        #self.v = self.add_weight(shape=(1,self.output_size*self.k), initializer='zeros', trainable=False)
+        """self.Bernoulli_weights = self.add_weight(
             shape=(self.output_size,self.k*self.output_size),
             initializer=rand_init(stddev=1. / np.sqrt(self.input_size)),
-            name='Bernoulli_weights')    
+            name='Bernoulli_weights')"""    
     
     def call(self, inputs):
         x, v_prev = inputs
@@ -77,17 +76,21 @@ class SpikingDense(tf.keras.layers.Layer):
         #print("tf.matmul(x, self.w)",tf.matmul(x, self.w))
         #v_new = [alpha * v_prev[i,:,:] + tf.matmul(x, self.w[i]) - threshold for i in range(self.k)]
         #v_new = tf.convert_to_tensor(v_new, dtype=tf.float32)
-        v_new = alpha * v_prev + tf.matmul(x, self.w) + self.b - threshold
+        v_new = alpha * v_prev + tf.matmul(x, self.w) + self.b
+        #v_new = tf.clip_by_value(v_new, clip_value_min=v_min, clip_value_max=threshold+1e-3)
+        v_new_ = v_new - threshold
+        #dv = (-self.v + tf.matmul(x, self.w) + self.b - threshold) / self.tau
+        #print("DDDD",dv, self.v)
+        #self.v.assign_add(self.dt * dv)
         #print("VVVVVVVVvv",v_new)
-        #spike = spike_function(v_new)
-        spike = tf.nn.elu(v_new)
-        spike = tf.nn.softmax(spike)
+        spike = spike_function(v_new_)
+        #spike = spike_function(self.v)
         #print("SSSSSSSSSSSs",spike)
         #spike_Bernoulli = spike @ self.Bernoulli_weights
         #random_index = np.random.randint(0,self.output_size*self.k,self.output_size)
         #spike_Bernoulli = tf.gather(spike_Bernoulli, random_index, axis=1)
-
-        v_reset = tf.where(spike > 0.0, 0.0, v_new)
+        #self.v.assign(tf.where(spike > 0, 0.0, self.v))
+        v_reset = tf.where(spike > 0.0, v_min, v_new)
         return spike, v_reset
 
 class RSNN(tf.keras.layers.Layer):

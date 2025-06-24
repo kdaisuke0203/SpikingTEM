@@ -14,6 +14,7 @@ import datetime
 import logging
 import time
 from distutils.dir_util import copy_tree
+import poisson_spike
 
 
 def cell_norm_online(cells, positions, current_cell_mat, pars):
@@ -323,10 +324,15 @@ def prepare_input(data_dict, pars, start_i=None):
 
     # get 2-hot encoding
     xs_two_hot = parameters.onehot2twohot(xs, data_dict.two_hot_table, pars.s_size_comp)
+    xs_two_hot_all = []
+    for i in range(xs_two_hot.shape[2]):
+        xs_two_hot_all.append(poisson_spike.generate_poisson_spikes(2*xs_two_hot[:,:,i], pars.spike_windows))
+    xs_two_hot_all = np.array(xs_two_hot_all)
     # model input data
     data_dict.inputs = model_utils.DotDict({'xs': xs,
                                             'x_s': data_dict.variables.x_s,
                                             'xs_two_hot': xs_two_hot,
+                                            'xs_two_hot_all': xs_two_hot_all,
                                             'gs': data_dict.variables.gs,
                                             'ds': data_dict.bptt_data.direc,
                                             'seq_index': np.array(data_dict.env_steps),

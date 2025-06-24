@@ -60,8 +60,6 @@ class SimpleSNN(tf.keras.Model):
             #self.fc2 = SpikingDense(input_size=hidden_size, output_size=output_size,name='g2g_spike_2')
         if nn_type == 'x2p':
             self.fc1 = SpikingDense(par, input_size=input_size, output_size=output_size,name='x2p_spike_1')
-        if nn_type == 'infer_g':
-            self.fc1 = SpikingDense(par, input_size=input_size, output_size=output_size,name='infer_g_spike_1')
 
     def call(self, inputs):
         x, v = inputs  # 入力を unpack
@@ -105,26 +103,19 @@ class TEM(tf.keras.Model):
         self.w_p = [tf.Variable(1.0, dtype=self.precision, trainable=True, name='w_p_' + str(f)) for f in
                     range(self.par.n_freq)]
 
+        self.stdp_W = tf.Variable(tf.random.uniform((self.par.p_size, self.par.p_size), 0.0, 0.1), dtype=tf.float32)
         self.v_p2g = self.add_weight(
             shape=(1, self.par.g_size * self.par.k),
             initializer='zeros',
             trainable=False,
             name='v_p2g_state'
         )
-        self.v_infer_g = self.add_weight(
-            shape=(1, self.par.g_size * self.par.k),
+        self.v_x2p = self.add_weight(
+            shape=(1, self.par.p_size * self.par.k),
             initializer='zeros',
             trainable=False,
-            name='v_infer_g_state'
+            name='v_x2p_state'
         )
-        """self.v_p2g_MLP_star = self.add_weight(
-            shape=(1, self.par.s_size * self.par.k),
-            initializer='zeros',
-            trainable=False,
-            name='v_MLP_star_state'
-        )"""
-        self.stdp_W = tf.Variable(tf.random.uniform((self.par.p_size, self.par.p_size), 0.0, 0.1), dtype=tf.float32)
-
         # g_prior mu
         self.g_prior_mu = tf.Variable(trunc_norm_g(shape=(1, self.par.g_size), dtype=self.precision), trainable=True,
                                       name='g_prior_mu')
@@ -181,16 +172,13 @@ class TEM(tf.keras.Model):
 
         #g2g
         self.g2g_mu_spike = SimpleSNN(self.par, self.par.g_size + 4, 2*self.par.g_size, self.par.g_size,time_steps=1, nn_type='g2g')
-        #g2g
-        self.infer_g_spiking = SimpleSNN(self.par, 2*self.par.g_size, 2*self.par.g_size, self.par.g_size,time_steps=1, nn_type='infer_g')
-
         # g2g logsigs
-        self.g2g_logsig_inf = [tf.keras.Sequential([Dense(2 * g_size, input_shape=(g_size,), activation=tf.nn.elu,
+        """self.g2g_logsig_inf = [tf.keras.Sequential([Dense(2 * g_size, input_shape=(g_size,), activation=tf.nn.elu,
                                                           kernel_initializer=glorot_uniform,
                                                           name='g2g_logsig_inf_1_' + str(f)),
                                                     Dense(g_size, activation=tf.tanh, kernel_initializer=glorot_uniform,
                                                           name='g2g_logsig_inf_2_' + str(f))]) for f, g_size in
-                               enumerate(self.par.n_grids_all)]
+                               enumerate(self.par.n_grids_all)]"""
 
         # MLP for compressing sensory observation
         if not self.par.two_hot:
@@ -211,10 +199,10 @@ class TEM(tf.keras.Model):
         """self.MLP_c_star = tf.keras.Sequential([Dense(self.par.s_size, input_shape=(self.par.s_size_comp,),
                                                      activation=tf.nn.elu, kernel_initializer=glorot_uniform,
                                                      name='MLP_c_star_1')])"""
-        #self.MLP_c_star_spiking = Transition_Model(self.par, 'sensory_star')
-        #self.MLP_c_star_spiking2 = SimpleSNN(self.par, self.par.s_size_comp,2*self.par.s_size_comp,self.par.s_size,time_steps=1, nn_type='sensory')
         if self.par.two_hot:
             self.x2p_spiking = SimpleSNN(self.par, self.par.s_size_comp, self.par.s_size_comp*2, self.par.p_size, nn_type='x2p')
+        #self.MLP_c_star_spiking = Transition_Model(self.par, 'sensory_star')
+        #self.MLP_c_star_spiking2 = SimpleSNN(self.par, self.par.s_size_comp,2*self.par.s_size_comp,self.par.s_size,time_steps=1, nn_type='sensory')
         self.MLP_c_star_spiking = SimpleSNN(self.par, self.par.p_size,2*self.par.s_size_comp,self.par.s_size,time_steps=1, nn_type='sensory')
 
     @model_utils.define_scope
@@ -305,6 +293,17 @@ class TEM(tf.keras.Model):
 
         return g, x_s, variable_dict, memories_dict
 
+    @tf.custom_gradient
+    def poisson_spike(self, p_spike):
+        random_values = tf.random.uniform(tf.shape(p_spike))
+        spikes = tf.cast(random_values < p_spike, tf.float32)
+
+        def grad(dy):
+            return dy
+
+        return spikes, grad
+
+    
     @model_utils.define_scope
     def inference(self, g2g_all, x, x_two_hot, x_, memories, d):
         """
@@ -317,20 +316,10 @@ class TEM(tf.keras.Model):
         g, p_x = self.infer_g(g2g_all, x2p, x, memories, x2p_all)
 
         # infer hippocampus
-        p, p_spike = self.infer_p(x2p, g)
+        p, p_spike = self.infer_p(x2p, g, x2p_all)
 
         return g, p, x_s, p_x, p_spike, x2p_all
 
-    @tf.custom_gradient
-    def poisson_spike(self, p_spike):
-        random_values = tf.random.uniform(tf.shape(p_spike))
-        spikes = tf.cast(random_values < p_spike, tf.float32)
-
-        def grad(dy):
-            return dy
-
-        return spikes, grad
-    
     @model_utils.define_scope
     def generation(self, p, g, g_gen, memories, p_spike):
         """
@@ -339,16 +328,10 @@ class TEM(tf.keras.Model):
         x_p, x_p_logits = self.f_x(p, p_spike)
 
         p_g = self.gen_p(g, memories)
-        p_g_spike = p_g[..., tf.newaxis] 
-        p_g_spike = tf.tile(p_g_spike, [1, 1, self.spike_step])  
-        p_g_spike = self.poisson_spike(p_g_spike)
-        x_g, x_g_logits = self.f_x(p_g, p_g_spike)
+        x_g, x_g_logits = self.f_x(p_g, p_spike)
 
         p_gt = self.gen_p(g_gen, memories)
-        p_gt_spike = p_gt[..., tf.newaxis] 
-        p_gt_spike = tf.tile(p_gt_spike, [1, 1, self.spike_step])  
-        p_gt_spike = self.poisson_spike(p_gt_spike)
-        x_gt, x_gt_logits = self.f_x(p_gt, p_gt_spike)
+        x_gt, x_gt_logits = self.f_x(p_gt, p_spike)
 
         x = model_utils.DotDict({'x_p': x_p,
                                  'x_g': x_g,
@@ -404,39 +387,17 @@ class TEM(tf.keras.Model):
 
         p_x = None
         mu, sigma = g2g_all
-        g2g_spike = mu[..., tf.newaxis] #* dt  # shape = [B, D, 1]
-        g2g_spike = tf.tile(g2g_spike, [1, 1, self.spike_step])  
-        g2g_spike = self.poisson_spike(g2g_spike)
 
         # Inference - factorised posteriors
         if 'p' in self.par.infer_g_type:
-            mu_p2g, sigma_p2g, p_x, p2g_all = self.p2g(mu_x2p, x, memories, x2p_all)
-            #mu = mu + mu_p2g *self.p_p
+            mu_p2g, sigma_p2g, p_x = self.p2g(mu_x2p, x, memories, x2p_all)
+            mu = mu + mu_p2g *self.p_p
             #_, mu, _, sigma = model_utils.combine2(mu, mu_p2g, sigma, sigma_p2g, self.batch_size)
-
-        ########## spiking  ########################
-        v = self.v_infer_g
-        o_sum = 0
-        mu_all = tf.TensorArray(dtype=tf.float32, size=self.spike_step)
-        for i in range(self.spike_step):
-            o, v = self.infer_g_spiking((tf.concat([g2g_spike, p2g_all], axis=1)[:,:,i], v))
-            o_sum += o / self.spike_step
-            mu_all = mu_all.write(i, o)
-        self.v_infer_g.assign(v)
-        mu_all = mu_all.stack()  # shape: (spike_step, batch_size, p_size)
-        mu_all = tf.transpose(mu_all, perm=[1, 2, 0]) 
-        o_sum= tf.reshape(o_sum, (self.par.g_size,self.par.k))
-        random_indices= tf.random.uniform(shape=(self.par.g_size,), minval=0, maxval=self.par.k, dtype=tf.int32)
-        batch_indices = tf.range(self.par.g_size, dtype=tf.int32)
-        gather_indices = tf.stack([batch_indices, random_indices], axis=1)  # shape: (15, 2)
-        o_sum = tf.gather_nd(o_sum, gather_indices)
-        mu = tf.reshape(o_sum, (1, self.par.g_size,))
-        ###########################################
 
         return mu, p_x
 
     @model_utils.define_scope
-    def infer_p(self, x2p, g):
+    def infer_p(self, x2p, g, x2p_all):
         """
         Infer place cells on basis of data as well as grid cells
         :param x2p: mean of distribution from data
@@ -445,7 +406,9 @@ class TEM(tf.keras.Model):
         """
         # grid input to hippocampus
         g2p = self.g2p(g)
-
+        #tf.print("G",g2p,summarize=-1)
+        x2p = tf.reduce_mean(x2p_all, axis=2)
+        #tf.print("X2p",x2p,summarize=-1)
         # hippocampus is conjunction between grid input and sensory input
         p = g2p * x2p
 
@@ -458,6 +421,25 @@ class TEM(tf.keras.Model):
 
         return p, p_spike
 
+    def lif_stdp_output(self, pre_spikes, W, tau=10.0, v_thresh=0.05, v_reset=0.0):
+        N_out, N_in = self.stdp_W.shape
+        T = pre_spikes.shape[-1]
+
+        V = tf.zeros([N_out], dtype=tf.float32)
+        post_spikes = []
+
+        for t in range(T):
+            input_t = pre_spikes[0,:, t]  # (N_in,)
+            I_t = tf.linalg.matvec(self.stdp_W, input_t)  # 電流
+            V = tf.exp(-1/tau) * V + I_t             # LIF膜電位更新
+
+            spikes_t = self.surrogate_spike(V) 
+            V = tf.where(spikes_t > 0, tf.constant(v_reset, dtype=tf.float32), V)
+
+            post_spikes.append(spikes_t)
+
+        return tf.stack(post_spikes, axis=1) 
+    
     @model_utils.define_scope
     def p2g(self, x2p, x, memories, x2p_all):
         """
@@ -472,43 +454,42 @@ class TEM(tf.keras.Model):
         p_x = self.attractor(x2p, memories)
         if self.par.stdp:
             x2p_all = self.lif_stdp_output(x2p_all, self.stdp_W)
-        #print("PPPP",p_x)
+            #p_x = tf.reduce_mean(x2p_all, axis=1)
+        #else:
+            #p_x = tf.reduce_mean(x2p_all, axis=2)
+        #print("PPP",p_x)
         # sum over senses
-        """mu_attractor_sensum = tf.reduce_mean(
-            tf.reshape(p_x, (self.batch_size, self.par.tot_phases, self.par.s_size_comp)), axis=2)
+        #mu_attractor_sensum = tf.reduce_mean(
+        #    tf.reshape(p_x, (self.batch_size, self.par.tot_phases, self.par.s_size_comp)), axis=2)
+
+        #print("mu_attractor_sensum",mu_attractor_sensum)
+        mu_attractor_sensum = tf.reduce_mean(
+            tf.reshape(x2p_all, (self.batch_size, self.par.tot_phases, self.par.s_size_comp, self.spike_step)), axis=2)        #print("mu_attractor_sensum",mu_attractor_sensum)
+        #print("mu_attractor_sensum",mu_attractor_sensum)
         mu_attractor_sensum_ = tf.split(mu_attractor_sensum, num_or_size_splits=self.par.n_phases_all, axis=1)
-        mu_attractor_sensum_ = tf.tile(tf.expand_dims(mu_attractor_sensum_, axis=3), multiples=[1,1,1,self.spike_step])
-        """
+        #mu_attractor_sensum_ = tf.tile(tf.expand_dims(mu_attractor_sensum_, axis=3), multiples=[1,1,1,self.spike_step])
+        #print("mu_attractor_sensum",mu_attractor_sensum_)
+        mu_attractor_sensum_ = tf.stack(mu_attractor_sensum_, axis=1)
+        #mu_attractor_sensum_ = mu_attractor_sensum
         #mus = [self.p2g_mu[f](x) for f, x in enumerate(mu_attractor_sensum_)]
         #mus = self.p2g_mu0(p_x)
         ############ spiking ###########################
-        """mus = [self.p2g_mu_spiking[f](tf.tile(tf.expand_dims(x, axis=2), multiples=[1,self.spike_step,1])) for f, x in enumerate(mu_attractor_sensum_)]
-        mus = [tf.transpose(mus[f], perm=[0, 2, 1]) for f, x in enumerate(mu_attractor_sensum_)]
-        mus = [tf.reduce_mean(mus[f], axis=2) for f, x in enumerate(mu_attractor_sensum_)]"""
         
         ############### spiking2 ###################################################
-        mu_attractor_sensum = tf.reduce_mean(
-            tf.reshape(x2p_all, (self.batch_size, self.par.tot_phases, self.par.s_size_comp, self.spike_step)), axis=2)        #print("mu_attractor_sensum",mu_attractor_sensum)
-        mu_attractor_sensum_ = tf.split(mu_attractor_sensum, num_or_size_splits=self.par.n_phases_all, axis=1)
-        mu_attractor_sensum_ = tf.stack(mu_attractor_sensum_, axis=1)
         #v = tf.zeros((x.shape[0], self.par.g_size*self.par.k))
         mus = []
         #print("mu_attractor_sensum_",mu_attractor_sensum_)
         v = self.v_p2g 
-        p2g_all = tf.TensorArray(dtype=tf.float32, size=self.spike_step)
-        for f in range(mu_attractor_sensum_.shape[0]):
+        for f in range(mu_attractor_sensum_.shape[0]):  # イテレーションは TensorFlow 的に
             x_f = mu_attractor_sensum_[:, f, :, :]
             o_sum = 0
             for i in range(self.spike_step):
                 o, v = self.p2g_mu_spiking2[f]((x_f[:,:,i], v))
                 o_sum += o / self.spike_step
-                p2g_all = p2g_all.write(i,o)
-            p2g_all = p2g_all.stack()  # shape: (spike_step, batch_size, p_size)
-            p2g_all = tf.transpose(p2g_all, perm=[1, 2, 0])
             o_sum= tf.reshape(o_sum, (self.par.g_size,self.par.k))
             random_indices= tf.random.uniform(shape=(self.par.g_size,), minval=0, maxval=self.par.k, dtype=tf.int32)
             batch_indices = tf.range(self.par.g_size, dtype=tf.int32)
-            gather_indices = tf.stack([batch_indices, random_indices], axis=1) 
+            gather_indices = tf.stack([batch_indices, random_indices], axis=1)  # shape: (15, 2)
             o_sum = tf.gather_nd(o_sum, gather_indices)
             o_sum = tf.reshape(o_sum, (1, self.par.g_size,))
             mus.append(o_sum)
@@ -544,7 +525,7 @@ class TEM(tf.keras.Model):
         # ignore p2g at beginning when memories crap
         sigma = 0.0#tf.exp(logsigma) + (1 - self.scalings.p2g_use) * self.par.p2g_sig_val
 
-        return mu, sigma, p_x, p2g_all
+        return mu, sigma, p_x
 
     @model_utils.define_scope
     def x2p(self, x, x_t, x_two_hot, d):
@@ -562,19 +543,19 @@ class TEM(tf.keras.Model):
             ######## spiking #####################
             if len(tf.shape(x_two_hot))==2:
                 #x = tf.tile(tf.expand_dims(x_two_hot, axis=2), multiples=[1,1,self.spike_step])
-                x_two_hot_spike = x_two_hot[..., tf.newaxis] #* dt  # shape = [B, D, 1]
-                x_two_hot_spike = tf.tile(x_two_hot_spike, [1, 1, self.spike_step])  
-                x_two_hot_spike = self.poisson_spike(x_two_hot_spike)
-            v = tf.zeros((x.shape[0], self.par.p_size*self.par.k)) 
-            #v = self.v_x2p
+                x = x_two_hot[..., tf.newaxis] #* dt  # shape = [B, D, 1]
+                x = tf.tile(x, [1, 1, self.spike_step])  
+                x = self.poisson_spike(x)
+            #v = tf.zeros((x.shape[0], self.par.p_size*self.par.k)) 
+            v = self.v_x2p
             o_sum = 0
             #x_2p_all = tf.zeros((x.shape[0], self.par.p_size, self.spike_step)) 
             x_2p_all = tf.TensorArray(dtype=tf.float32, size=self.spike_step)
             for i in range(self.spike_step):
-                o, v = self.x2p_spiking((x_two_hot_spike[:,:,i], v))
+                o, v = self.x2p_spiking((x[:,:,i], v))
                 o_sum += o / self.spike_step
                 x_2p_all = x_2p_all.write(i, o)
-            #self.v_x2p.assign(v)
+            self.v_x2p.assign(v)
             x_2p_all = x_2p_all.stack()  # shape: (spike_step, batch_size, p_size)
             x_2p_all = tf.transpose(x_2p_all, perm=[1, 2, 0]) 
             #tf.print("x_2p_all",x_2p_all,summarize=-1)
@@ -584,7 +565,7 @@ class TEM(tf.keras.Model):
             gather_indices = tf.stack([batch_indices, random_indices], axis=1)  # shape: (15, 2)
             o_sum = tf.gather_nd(o_sum, gather_indices)
             o_sum = tf.reshape(o_sum, (1, self.par.p_size,))
-            #x_2p = o_sum
+            x_2p = o_sum
         else:
             # otherwise compress one-hot encoding
             x_comp = self.MLP_c(x)
@@ -595,6 +576,10 @@ class TEM(tf.keras.Model):
         x_normed = self.f_n(x_)
         # tile to make same size as hippocampus
         x_2p = self.x_2p(x_normed)
+
+        ############## spiking #############################
+
+
 
         return x_2p, x_, tf.concat(x_normed, axis=1), x_comp, x_2p_all
 
@@ -655,8 +640,8 @@ class TEM(tf.keras.Model):
         :return:
         """
         # scale by w_p and tile to have appropriate place cell size (same as W_tile)
-        mus = [tf.tile(tf.sigmoid(self.w_p[f]) * x_[f], (1, self.par.n_phases_all[f])) for f in
-               range(self.par.n_freq)]
+        #mus = [tf.tile(tf.sigmoid(self.w_p[f]) * x_[f], (1, self.par.n_phases_all[f])) for f in range(self.par.n_freq)]
+        mus = [tf.tile(x_[f], (1, self.par.n_phases_all[f])) for f in range(self.par.n_freq)]
 
         mu = tf.concat(mus, 1)
 
@@ -739,7 +724,7 @@ class TEM(tf.keras.Model):
         if name == 'gen':
             logsig = 0.0  # [self.g2g_logsig_gen[f](x) for f, x in enumerate(gs)]
         elif name == 'inf':
-            logsigs = [self.g2g_logsig_inf[f](x) for f, x in enumerate(gs)]
+            logsigs = 0.0#[self.g2g_logsig_inf[f](x) for f, x in enumerate(gs)]
             logsig = tf.concat(logsigs, axis=1)# * self.par.logsig_ratio + self.par.logsig_offset
         else:
             raise ValueError('Incorrect name given')
@@ -748,25 +733,6 @@ class TEM(tf.keras.Model):
 
         return mu, sigma
 
-    def lif_stdp_output(self, pre_spikes, W, tau=10.0, v_thresh=0.05, v_reset=0.0):
-        N_out, N_in = self.stdp_W.shape
-        T = pre_spikes.shape[-1]
-
-        V = tf.zeros([N_out], dtype=tf.float32)
-        post_spikes = []
-
-        for t in range(T):
-            input_t = pre_spikes[0,:, t]  # (N_in,)
-            I_t = tf.linalg.matvec(self.stdp_W, input_t)  # 電流
-            V = tf.exp(-1/tau) * V + I_t             # LIF膜電位更新
-
-            spikes_t = self.surrogate_spike(V) 
-            V = tf.where(spikes_t > 0, tf.constant(v_reset, dtype=tf.float32), V)
-
-            post_spikes.append(spikes_t)
-
-        return tf.stack(post_spikes, axis=1)
-    
     @model_utils.define_scope
     def g_prior(self):
         """
@@ -809,9 +775,9 @@ class TEM(tf.keras.Model):
         # same as W_tile^T
         x_s = tf.reduce_sum(
             tf.reshape(ps[self.par.prediction_freq], (self.batch_size, self.par.n_phases_all[
-                self.par.prediction_freq], self.par.s_size_comp)), axis=1)
+                self.par.prediction_freq], self.par.s_size_comp)), axis=1)"""
 
-        x_logits_ = self.w_x * x_s + self.b_x"""
+        #x_logits_ = self.w_x * x_s + self.b_x
         #x_logits = self.MLP_c_star(x_logits_)
         #x = tf.nn.softmax(x_logits)
         # decompress sensory
@@ -826,7 +792,10 @@ class TEM(tf.keras.Model):
         
         ################ spiking2 ###################################
         """if len(tf.shape(x_logits_))==2:
-            x_logits_ = tf.tile(tf.expand_dims(x_logits_, axis=2), multiples=[1,1,self.spike_step])"""
+            #x_logits_ = tf.tile(tf.expand_dims(x_logits_, axis=2), multiples=[1,1,self.spike_step])
+            x_logits_ = x_logits_[..., tf.newaxis] #* dt  # shape = [B, D, 1]
+            x_logits_ = tf.tile(x_logits_, [1, 1, self.spike_step])  
+            x_logits_ = self.poisson_spike(x_logits_)"""
         #v = tf.zeros((self.par.k, x_logits_.shape[0], self.par.s_size)) 
         v = tf.zeros((p.shape[0], self.par.s_size*self.par.k)) 
         o_sum = 0
@@ -859,6 +828,7 @@ class TEM(tf.keras.Model):
 
         return x, x_logits
 
+    
     def stdp_update(self, pre_spikes, post_spikes, W):
         A_plus = 0.01
         A_minus = -0.012
@@ -1298,6 +1268,8 @@ def compute_losses(model_inputs, data, trainable_variables, par):
     lp = 0.0
     lg = 0.0
     lp_x = 0.0
+    lx_g_ = 0.0
+    lx_gt_ = 0.0
     lg_reg = 0.0
     lp_reg = 0.0
 

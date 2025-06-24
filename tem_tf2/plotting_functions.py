@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-@author: James Whittington
-"""
 
 import matplotlib.pyplot as plt
 
@@ -14,11 +11,76 @@ import gzip
 import copy as cp
 import numpy as np
 import os 
+from scipy.ndimage import rotate
+from scipy.signal import correlate2d
+from scipy.stats import pearsonr
+
 
 interpolation_method = 'None'
 fontsize = 25
 linewidth = 4
 labelsize = 20
+
+def compute_square_gridness(autocorr):
+    center = np.array(autocorr.shape) // 2
+    radius = min(center) // 2
+
+    y, x = np.ogrid[:autocorr.shape[0], :autocorr.shape[1]]
+    dist_from_center = np.sqrt((x - center[1])**2 + (y - center[0])**2)
+    mask = (dist_from_center > radius) & (dist_from_center < radius + 4)
+
+    base = autocorr.copy()
+
+    def rotated_corr(angle):
+        rotated = rotate(base, angle, reshape=False, order=1, mode='constant', cval=0.0)
+        if np.std(rotated[mask]) == 0 or np.std(base[mask]) == 0:
+            return np.nan
+        return pearsonr(base[mask].ravel(), rotated[mask].ravel())[0]
+
+    corr_90 = rotated_corr(90)
+    corr_270 = rotated_corr(270)
+    corr_45 = rotated_corr(45)
+
+    if np.any(np.isnan([corr_90, corr_270, corr_45])):
+        return np.nan
+
+    square_gridness = (corr_90 + corr_270)/2 - corr_45
+    return square_gridness
+
+def compute_autocorr(rate_map):
+    # subtract mean for zero-mean correlation
+    rate_map_zero_mean = rate_map - np.nanmean(rate_map)
+    return correlate2d(rate_map_zero_mean, rate_map_zero_mean, mode='full')
+
+def compute_gridness(rate_map):
+    autocorr = compute_autocorr(rate_map)
+    center = np.array(autocorr.shape) // 2
+    radius = 1  # これを調整可能
+    #print("autocorr",autocorr,"center",center)
+
+    # 中心部分のマスクを除去
+    y, x = np.ogrid[:autocorr.shape[0], :autocorr.shape[1]]
+    dist_from_center = np.sqrt((x - center[1])**2 + (y - center[0])**2)
+    mask = (dist_from_center > radius) & (dist_from_center < radius + 4)  # 輪状マスク
+    #print("mask",mask)
+
+    angles = [30, 60, 90, 120, 150]
+    scores = []
+
+    base = autocorr * mask  # 基準（未回転）
+
+    for angle in angles:
+        rotated = rotate(autocorr, angle, reshape=False, order=1)
+        rotated = rotated * mask  # 同じマスクを適用
+        #print("rrrr",rotated)
+        r = np.corrcoef(base[mask].ravel(), rotated[mask].ravel())[0, 1]
+        #print("rrrrrrr",r)
+        scores.append(r)
+
+    # 60度/120度は六角構造に一致するので最大、それ以外は最小に
+    gridness = np.min([scores[0], scores[2], scores[4]]) - np.max([scores[1], scores[3]])
+
+    return gridness
 
 
 def square_plot(cells, env, pars, plot_specs, name='sq', lims=(), mask=False, env_class=None, fig_dir=None, dates=None, runs=0):
@@ -119,21 +181,62 @@ def square_plot(cells, env, pars, plot_specs, name='sq', lims=(), mask=False, en
         cell_prepared = cell_prepared[:xs.shape[0]]
         widd = int(np.max(xs)-np.min(xs))+1
         #print("iiiii",int(np.max(xs)-np.min(xs)))
-        g_map = cell_prepared.reshape(widd, widd)
+        g_map = cell_prepared.reshape(widd, widd)*10
+        #print("grid",grid,"QQQQQQQQqq",g_map)
+        gridness = compute_gridness(g_map)
+        print("grid",grid,"Gridness:",gridness)
         ax = plt.gca()
+        #ax2 = plt.gca()
         #print("ggggg",g_map)
         #'none', 'nearest', 'bilinear', 'bicubic', 'spline16',
            #'spline36', 'hanning', 'hamming', 'hermite', 'kaiser', 'quadric',
            #'catrom', 'gaussian', 'bessel', 'mitchell', 'sinc', 'lanczos']
         ax.imshow(g_map, interpolation='spline16', cmap=plot_specs.cmap)
         ax.axis("off")
+        ax.set_title(f"#{grid}", fontsize=12)
+
+    #f plot_specs.save:
+    #    f.savefig((fig_dir if fig_dir else './figures/' + name) + ".png", bbox_inches='tight')
+    #print("save_dirs + name)",path + name)
+    #plt.show()
+    f2.savefig((path + name) + "sm.png")
+    #plt.close('all')
+
+    #f3 = plt.figure(figsize=(18, 18))
+
+    for grid in range(n):
+        cell_ = cell[:, grid]
+
+        if plot_specs.split_freqs:
+            if sum(np.cumsum(plot_specs.n_cells_freq) == grid) > 0:
+                add_on += n_cols if (grid + add_on) % n_cols == 0 else 2 * n_cols - ((grid + add_on) % n_cols)
+            #plt.subplot(n_rows, n_cols, add_on + grid + 1)
+            plt.subplot(n_rows, n_cols, grid + 1)
+        else:
+            plt.subplot(n_rows, n_cols, grid + 1)
+        xs, ys, cell_prepared = env_class.get_node_positions(cells=cell_, _plot_specs=plot_specs, _mask=mask)
+        cell_prepared = cell_prepared[:xs.shape[0]]
+        widd = int(np.max(xs)-np.min(xs))+1
+        #print("iiiii",int(np.max(xs)-np.min(xs)))
+        g_map = cell_prepared.reshape(widd, widd)*10
+        #print("grid",grid,"QQQQQQQQqq",g_map)
+        gridness = compute_gridness(g_map)
+        #print("grid",grid,"Gridness:",gridness)
+        #ax = plt.gca()
+        gridness_sq = compute_square_gridness(compute_autocorr(g_map))
+        print("grid",grid,"Gridness_sq:",gridness_sq)
+        #ax.imshow(compute_autocorr(g_map), interpolation='spline16', cmap=plot_specs.cmap)
+        #ax.axis("off")
+        #ax.set_title(f"#{grid}", fontsize=12)
 
     #f plot_specs.save:
     #    f.savefig((fig_dir if fig_dir else './figures/' + name) + ".png", bbox_inches='tight')
     #print("save_dirs + name)",path + name)
     plt.show()
-    f2.savefig((path + name) + "sm.png")
+    #f3.savefig((path + name) + "sm.png")
     plt.close('all')
+
+
 
 
 def square_autocorr_plot(cells, env, pars, plot_specs, name='auto', env_class=None):
