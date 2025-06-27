@@ -1,1 +1,1 @@
-# spikingTEM
+# spiking tolman eichenbaum machine (SpikingTEM)
