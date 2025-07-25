@@ -55,13 +55,13 @@ def compute_autocorr(rate_map):
 def compute_gridness(rate_map):
     autocorr = compute_autocorr(rate_map)
     center = np.array(autocorr.shape) // 2
-    radius = 1  # これを調整可能
+    radius = 0.5  # これを調整可能
     #print("autocorr",autocorr,"center",center)
 
     # 中心部分のマスクを除去
     y, x = np.ogrid[:autocorr.shape[0], :autocorr.shape[1]]
     dist_from_center = np.sqrt((x - center[1])**2 + (y - center[0])**2)
-    mask = (dist_from_center > radius) & (dist_from_center < radius + 4)  # 輪状マスク
+    mask = (dist_from_center > radius) & (dist_from_center < radius + 5)  # 輪状マスク
     #print("mask",mask)
 
     angles = [30, 60, 90, 120, 150]
@@ -110,8 +110,8 @@ def square_plot(cells, env, pars, plot_specs, name='sq', lims=(), mask=False, en
     add_on = 0
     print("number of cells",n)
     print("n_cols",n_cols,"n_rows",n_rows)
-    n_cols = 13
-    #n_rows = 10
+    n_cols = 18
+    n_rows = 18
     path = os.path.join(os.path.dirname(os.getcwd()), "Summaries/"+dates+"/run"+runs+"/").replace("\\", "/")
     save_dirs = [path]
     """f = plt.figure(figsize=(18, 18))
@@ -183,8 +183,8 @@ def square_plot(cells, env, pars, plot_specs, name='sq', lims=(), mask=False, en
         #print("iiiii",int(np.max(xs)-np.min(xs)))
         g_map = cell_prepared.reshape(widd, widd)*10
         #print("grid",grid,"QQQQQQQQqq",g_map)
-        gridness = compute_gridness(g_map)
-        print("grid",grid,"Gridness:",gridness)
+        #gridness = compute_gridness(g_map)
+        #print("grid",grid,"Gridness:",gridness)
         ax = plt.gca()
         #ax2 = plt.gca()
         #print("ggggg",g_map)
@@ -194,7 +194,7 @@ def square_plot(cells, env, pars, plot_specs, name='sq', lims=(), mask=False, en
         ax.imshow(g_map, interpolation='spline16', cmap=plot_specs.cmap)
         ax.axis("off")
         ax.set_title(f"#{grid}", fontsize=12)
-
+        #print("Gmap",g_map)
     #f plot_specs.save:
     #    f.savefig((fig_dir if fig_dir else './figures/' + name) + ".png", bbox_inches='tight')
     #print("save_dirs + name)",path + name)
@@ -202,7 +202,7 @@ def square_plot(cells, env, pars, plot_specs, name='sq', lims=(), mask=False, en
     f2.savefig((path + name) + "sm.png")
     #plt.close('all')
 
-    #f3 = plt.figure(figsize=(18, 18))
+    """f3 = plt.figure(figsize=(18, 18))
 
     for grid in range(n):
         cell_ = cell[:, grid]
@@ -218,21 +218,22 @@ def square_plot(cells, env, pars, plot_specs, name='sq', lims=(), mask=False, en
         cell_prepared = cell_prepared[:xs.shape[0]]
         widd = int(np.max(xs)-np.min(xs))+1
         #print("iiiii",int(np.max(xs)-np.min(xs)))
+        ax2 = plt.gca()
         g_map = cell_prepared.reshape(widd, widd)*10
         #print("grid",grid,"QQQQQQQQqq",g_map)
         gridness = compute_gridness(g_map)
-        #print("grid",grid,"Gridness:",gridness)
+        print("grid",grid,"Gridness:",gridness)
         #ax = plt.gca()
-        gridness_sq = compute_square_gridness(compute_autocorr(g_map))
-        print("grid",grid,"Gridness_sq:",gridness_sq)
-        #ax.imshow(compute_autocorr(g_map), interpolation='spline16', cmap=plot_specs.cmap)
-        #ax.axis("off")
-        #ax.set_title(f"#{grid}", fontsize=12)
+        #gridness_sq = compute_square_gridness(compute_autocorr(g_map))
+        #print("grid",grid,"Gridness_sq:",gridness_sq)
+        ax2.imshow(compute_autocorr(g_map), interpolation='spline16', cmap=plot_specs.cmap)
+        ax2.axis("off")
+        ax2.set_title(f"#{grid}", fontsize=12)"""
 
     #f plot_specs.save:
     #    f.savefig((fig_dir if fig_dir else './figures/' + name) + ".png", bbox_inches='tight')
     #print("save_dirs + name)",path + name)
-    plt.show()
+    #plt.show()
     #f3.savefig((path + name) + "sm.png")
     plt.close('all')
 
@@ -454,8 +455,11 @@ def get_data(save_dirs, run, date, recent=-1, index=None, smoothing=0, n_envs_sa
 
     # Timeseries are numpy arrays of shape [environments (or batch size), cells, timesteps]
     g_timeseries = load_numpy_gz(save_path + '/gs_timeseries_' + index + '.npy')
+    g2p_timeseries = load_numpy_gz(save_path + '/g2ps_timeseries_' + index + '.npy')
+    g_gen_timeseries = load_numpy_gz(save_path + '/g_gens_timeseries_' + index + '.npy')
     g_pred2_timeseries = np.roll(np.copy(g_timeseries), -1)
     p_timeseries = load_numpy_gz(save_path + '/ps_timeseries_' + index + '.npy')
+    x2p_timeseries = load_numpy_gz(save_path + '/x2ps_timeseries_' + index + '.npy')
     pos_timeseries = load_numpy_gz(save_path + '/pos_timeseries_' + index + '.npy')
     x_timeseries = load_numpy_gz(save_path + '/xs_timeseries_' + index + '.npy')
     x_gt_timeseries = load_numpy_gz(save_path + '/xs_gt_timeseries_' + index + '.npy')
@@ -495,8 +499,11 @@ def get_data(save_dirs, run, date, recent=-1, index=None, smoothing=0, n_envs_sa
     x_all = rate_map_from_timeseries(x_timeseries, pos_timeseries, params, smoothing=smoothing, envs=envs)
     #print("x_all",len(x_all))
     g_all = rate_map_from_timeseries(g_timeseries, pos_timeseries, params, smoothing=smoothing, envs=envs)
+    g2p_all = rate_map_from_timeseries(g2p_timeseries, pos_timeseries, params, smoothing=smoothing, envs=envs)
+    g_gen_all = rate_map_from_timeseries(g_gen_timeseries, pos_timeseries, params, smoothing=smoothing, envs=envs)
     g_pred2_all = rate_map_from_timeseries(g_pred2_timeseries, pos_timeseries, params, smoothing=smoothing, envs=envs)
     p_all = rate_map_from_timeseries(p_timeseries, pos_timeseries, params, smoothing=smoothing, envs=envs)
+    x2p_all = rate_map_from_timeseries(x2p_timeseries, pos_timeseries, params, smoothing=smoothing, envs=envs)
     # These are more like histograms, but can use the same rate-map machinery
     x_gt_timeseries = np.mean(x_gt_timeseries,axis=-1)
     correct_timeseries = np.expand_dims(np.argmax(x_gt_timeseries, axis=1) == np.argmax(x_timeseries, axis=1),
@@ -508,14 +515,20 @@ def get_data(save_dirs, run, date, recent=-1, index=None, smoothing=0, n_envs_sa
     print('Successfully reconstructed rate maps from timeseries')
 
     g_all = np.nan_to_num(g_all)
+    g2p_all = np.nan_to_num(g2p_all)
+    g_gen_all = np.nan_to_num(g_gen_all)
     g_pred2_all = np.nan_to_num(g_pred2_all)
     p_all = np.nan_to_num(p_all)
+    x2p_all = np.nan_to_num(x2p_all)
 
     data = DotDict({
         'x': x_all,
         'g': g_all,
+        'g2p': g2p_all,
+        'g_gen': g_gen_all,
         'g_pred2': g_pred2_all,
         'p': p_all,
+        'x2p': x2p_all,
         'acc_to': acc_s_t_to,
         'acc_from': acc_s_t_from,
         'positions': positions,

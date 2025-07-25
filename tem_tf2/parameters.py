@@ -9,9 +9,8 @@ from scipy.special import comb
 import itertools
 from model_utils import DotDict as Dd
 
-wi = 6
+wi = 8
 env_width = [wi]
-
 
 def default_params(width=None, height=None, world_type=None, batch_size=None):
     params = Dd()
@@ -23,7 +22,7 @@ def default_params(width=None, height=None, world_type=None, batch_size=None):
 
     params.batch_size = len(env_width) if not batch_size else batch_size
     # seq_len - we truncate BPTT to sequences of this length
-    params.seq_len = 10  # 75  # 50
+    params.seq_len = 25  # 8s, 10s
     params.max_states = int(wi*wi) #350
 
     # 'rectangle', 'hexagonal', 'family_tree', 'line_ti', 'wood2000', 'frank2000', 'grieves2016', 'sun2020', 'nieh2021'
@@ -31,10 +30,10 @@ def default_params(width=None, height=None, world_type=None, batch_size=None):
 
     # ENVIRONMENT params
     params.n_envs = params.batch_size
-    params.s_size = 15 #45
+    params.s_size = 15 #45 100-
     params.asyncrounous_envs = True
     params = get_env_params(params, width, height=height)
-    params.use_reward = False#True
+    params.use_reward = False #True
 
     # DATA / SAVE / SUMMARY params params
 
@@ -45,22 +44,29 @@ def default_params(width=None, height=None, world_type=None, batch_size=None):
     # num gradient updates between detailed accuracy summaries
     params.sum_int_inferences = 400 #400
     # number of gradient steps between saving data
-    params.save_interval = int(20000 / params.seq_len) #20000/
+    params.save_interval = int(30000 / params.seq_len) #20000/
     # number of gradient steps between saving model
     params.save_model = 5 * params.save_interval
 
     # MODEL params
-    params.spike_windows = 5
-    params.k = 1
-    params.d_repeat = 1
+    params.spike_windows = 3 #1s, 3a, 5a
+    params.k = 1 #1, 4b, 5a
+    params.thr = 0.1 #1.0s, 1.5s, 10a
+    params.v_min = -0.2
+    params.v_max = 0.2
+    params.tau = 2.0 #5s
+    params.d_repeat = 1 #2, 15a
+    params.ds_size = 50 #20s
+    params.inf_g_size = 100
     params.infer_g_type = 'g_p'  # 'g'
-    params.two_hot = True#False
-    params.stdp = False
-    params.s_size_comp = 8 #10
+    params.two_hot = False
+    params.stdp = True
+    params.d_rep = True
+    params.s_size_comp = 12 #5s, 15s, 20a, 40a 大きくするほどhippocamal cell activiy sparse
 
     # numbers of variables for each frequency
-    params.n_grids_all = [50] #[30, 30, 24, 18, 18]
-    params.grid2phase = 3 #3
+    params.n_grids_all = [100] #[30, 30, 24, 18, 18]
+    params.grid2phase = 4 #3, 4a, 6s, 7b
     params.n_phases_all = [int(n_grid / params.grid2phase) for n_grid in params.n_grids_all]
     params.tot_phases = sum(params.n_phases_all)
     params.n_freq = len(params.n_phases_all)
@@ -85,10 +91,10 @@ def default_params(width=None, height=None, world_type=None, batch_size=None):
                                        combins_table(params.s_size_comp, 2), params.s_size_comp)
 
     # TRAINING params
-    params.train_iters = 20001 #2000000
+    params.train_iters = 20000 #2000000
     params.train_on_visited_states_only = True
     params.learning_rate_max = 9.3e-4#9.3e-4
-    params.learning_rate_min = 8e-5
+    params.learning_rate_min = 1e-5
     params.logsig_ratio = 6 #6
     params.logsig_offset = -2
 
@@ -103,13 +109,13 @@ def default_params(width=None, height=None, world_type=None, batch_size=None):
     params.weight_reg_val = 0.001
 
     # Number gradient updates for annealing (in number of gradient updates)
-    params.temp_it = 1000 #2000
+    params.temp_it = 2000 #2000
     params.forget_it = 200
     params.hebb_learn_it = 16000
     params.p2g_use_it = 0
     params.p2g_scale = 200
     params.p2g_sig_val = 10000
-    params.g_reg_it = 400000 #40000000
+    params.g_reg_it = 10000 #4000s
     params.p_reg_it = 4000
     params.l_r_decay_steps = 4000 #4000
     params.l_r_decay_rate = 0.5 #0.5

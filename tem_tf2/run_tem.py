@@ -191,13 +191,13 @@ for train_i in range(params.train_iters): #for train_i in range(params.train_ite
     if train_i % params.save_interval == 0:# and train_i > 0:
         #start_time = time.time()
         
-        # data_utils.save_model_outputs(test_step, train_i, save_path, params)
+        #data_utils.save_model_outputs(model, model_utils, train_i, save_path, params)
         print("Saving model params")
         data_utils.save_params(params, save_path, script_path, train_i)
 
         # save model checkpoint
-        msg = ("it={:.0f}, lxP={:.2f}, lxG={:.2f}, lxGt={:.2f}, lp={:.2f}, lg={:.2f}").format(train_i, losses.lx_p, losses.lx_g, losses.lx_gt, losses.lp,
-                                      losses.lg)
+        msg = ("it={:.0f}, lxP={:.2f}, lxG={:.2f}, lxGt={:.2f}, lp={:.2f}, lg={:.2f}, lp_reg={:.2f}, lg_reg={:.2f}").format(train_i, losses.lx_p, losses.lx_g, losses.lx_gt, losses.lp,
+                                      losses.lg, losses.lp_reg, losses.lg_reg)
         logger_sums.info(msg)
         model.save_weights(model_path + '/tem_' + str(train_i))
         """logger_sums.info("save data time {:.2f}, train_i={:.2f}, total_steps={:.2f}".format(time.time() - start_time,

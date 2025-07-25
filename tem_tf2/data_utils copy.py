@@ -15,7 +15,7 @@ import logging
 import time
 from distutils.dir_util import copy_tree
 import poisson_spike
-np.set_printoptions(precision=3)
+
 
 def cell_norm_online(cells, positions, current_cell_mat, pars):
     # for separate environments within each batch
@@ -276,47 +276,35 @@ def initialise_hebb(env_steps, data_dict, pars):
 
 
 def prepare_cell_timeseries(data, prev_data, pars):
-    gs, g2ps, g_gens, ps, x2ps, pos, xs, xs_gt = data
-    gs_, g2ps_, g_gens_, ps_, x2ps_, pos_, xs_, xs_gt_ = prev_data
+    gs, ps, pos, xs, xs_gt = data
+    gs_, ps_, pos_, xs_, xs_gt_ = prev_data
     # convert to batch_size x cells x timesteps
     g1s = np.transpose(np.array(cp.deepcopy(gs)), [1, 2, 0])
-    g2p1s = np.transpose(np.array(cp.deepcopy(g2ps)), [1, 2, 0])
-    g_gen1s = np.transpose(np.array(cp.deepcopy(g_gens)), [1, 2, 0])
     p1s = np.transpose(np.array(cp.deepcopy(ps)), [1, 2, 0])
-    x2p1s = np.transpose(np.array(cp.deepcopy(x2ps)), [1, 2, 0])
     g1s = g1s[:pars.n_envs_save, :, :]
-    g2p1s = g2p1s[:pars.n_envs_save, :, :]
-    g_gen1s = g_gen1s[:pars.n_envs_save, :, :]
     p1s = p1s[:pars.n_envs_save, :, :]
-    x2p1s = x2p1s[:pars.n_envs_save, :, :]
 
     xgt1s = np.transpose(np.array(cp.deepcopy(xs_gt)), [1, 2, 0])
     xgt1s = xgt1s[:pars.n_envs_save, :, :]
     x1s = xs[:pars.n_envs_save, :, :]
 
-    grids, g2p_grids, gen_grids, places, x2places, positions, senses, senses_pred = [], [], [], [], [], [], [], []
+    grids, places, positions, senses, senses_pred = [], [], [], [], []
 
     for env in range(pars.n_envs_save):
         if gs_ is None:
             grids.append(cp.deepcopy(g1s[env]))
-            g2p_grids.append(cp.deepcopy(g2p1s[env]))
-            gen_grids.append(cp.deepcopy(g_gen1s[env]))
             places.append(cp.deepcopy(p1s[env]))
-            x2places.append(cp.deepcopy(x2p1s[env]))
             positions.append(cp.deepcopy(pos[env]))
             senses.append(cp.deepcopy(x1s[env]))
             senses_pred.append(cp.deepcopy(xgt1s[env]))
         else:
             grids.append(np.concatenate((gs_[env], g1s[env]), axis=1))
-            g2p_grids.append(np.concatenate((g2ps_[env], g2p1s[env]), axis=1))
-            gen_grids.append(np.concatenate((g_gens_[env], g_gen1s[env]), axis=1))
             places.append(np.concatenate((ps_[env], p1s[env]), axis=1))
-            x2places.append(np.concatenate((x2ps_[env], x2p1s[env]), axis=1))
             positions.append(np.concatenate((pos_[env], pos[env]), axis=0))
             senses.append(np.concatenate((xs_[env], x1s[env]), axis=1))
             senses_pred.append(np.concatenate((xs_gt_[env], xgt1s[env]), axis=1))
 
-    return [grids, g2p_grids, gen_grids, places, x2places, positions, senses, senses_pred]
+    return [grids, places, positions, senses, senses_pred]
 
 
 def prepare_input(data_dict, pars, start_i=None):
@@ -431,7 +419,7 @@ def initialise_environments(curric_env, env_steps, pars, test=False):
             # asyncrounous environment walks - each env will have different walk length
             # shorter walks for smaller environments
             probs = np.ones(pars.env.seq_jitter)
-            batch_rn = 4*curric_env.n_restart + 1*np.random.choice(np.arange(pars.env.seq_jitter), p=probs / sum(probs))
+            batch_rn = curric_env.n_restart + 1*np.random.choice(np.arange(pars.env.seq_jitter), p=probs / sum(probs))
             # 40 = 2*rep_num_k , environments.py
             #if batch_rn > 40:
                 #batch_rn = 40
@@ -485,8 +473,8 @@ def save_model_outputs(model, model_utils_, train_i, save_path, pars):
     Takes a model and collects cell and environment timeseries from a forward pass
     """
     # Initialise timeseries data to collect
-    gs_timeseries, g2ps_timeseries, g_gens_timeseries, ps_timeseries, x2ps_timeseries, pos_timeseries, xs_timeseries, xs_gt_timeseries, variables_test = \
-        None, None, None, None, None, None, None, None, None
+    gs_timeseries, ps_timeseries, x2ps_timeseries, pos_timeseries, xs_timeseries, xs_gt_timeseries, variables_test = \
+        None, None, None, None, None, None, None
     # Initialise model input data
     test_dict = get_initial_data_dict(pars)
     # Run forward pass
@@ -508,17 +496,15 @@ def save_model_outputs(model, model_utils_, train_i, save_path, pars):
         xs = test_dict.inputs.xs
         # Collect model step data: cell activity (converted to numpy)
         gs_numpy = [x.numpy() for x in variables_test.g.g]
-        g2ps_numpy = [x.numpy() for x in variables_test.g.g2p]
-        g_gens_numpy = [x.numpy() for x in variables_test.g.g_gen]
         ps_numpy = [x.numpy() for x in variables_test.p.p]
         x2ps_numpy = [x.numpy() for x in variables_test.p.x2p]
         x_gt_numpy = [x.numpy() for x in variables_test.pred.x_gt]
 
         # Update timeseries
-        prev_cell_timeseries = [gs_timeseries, g2ps_timeseries, g_gens_timeseries, ps_timeseries, x2ps_timeseries, pos_timeseries, xs_timeseries, xs_gt_timeseries]
-        save_data_timeseries = [gs_numpy, g2ps_numpy, g_gens_numpy, ps_numpy, x2ps_numpy, position, xs, x_gt_numpy]
+        prev_cell_timeseries = [gs_timeseries, ps_timeseries, x2ps_timeseries, pos_timeseries, xs_timeseries, xs_gt_timeseries]
+        save_data_timeseries = [gs_numpy, ps_numpy, x2ps_numpy, position, xs, x_gt_numpy]
         cell_timeseries = prepare_cell_timeseries(save_data_timeseries, prev_cell_timeseries, pars)
-        gs_timeseries, g2ps_timeseries, g_gens_timeseries, ps_timeseries, x2ps_timeseries, pos_timeseries, xs_timeseries, xs_gt_timeseries = cell_timeseries
+        gs_timeseries, ps_timeseries, x2ps_timeseries, pos_timeseries, xs_timeseries, xs_gt_timeseries = cell_timeseries
 
         ii += 1
         print(str(ii) + '/' + str(int(len(test_dict.walk_data.position[0]) / pars.seq_len)), end=' ')
@@ -529,12 +515,8 @@ def save_model_outputs(model, model_utils_, train_i, save_path, pars):
     np.save(save_path + '/final_variables' + str(train_i),
             model_utils_.DotDict.to_dict(model_utils_.tf2numpy(variables_test)), allow_pickle=True)
 
-    #print("ps_timeseries",ps_timeseries)
-    #print("x2ps_timeseries",x2ps_timeseries)
     # Save all timeseries to file
     np.save(save_path + '/gs_timeseries_' + str(train_i), gs_timeseries)
-    np.save(save_path + '/g2ps_timeseries_' + str(train_i), g2ps_timeseries)
-    np.save(save_path + '/g_gens_timeseries_' + str(train_i), g_gens_timeseries)
     np.save(save_path + '/ps_timeseries_' + str(train_i), ps_timeseries)
     np.save(save_path + '/x2ps_timeseries_' + str(train_i), x2ps_timeseries)
     np.save(save_path + '/pos_timeseries_' + str(train_i), pos_timeseries)
