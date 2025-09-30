@@ -99,7 +99,6 @@ def sparse_softmax_cross_entropy_with_logits(labels, logits):
     labels = tf.argmax(input=labels, axis=1)
     return tf.nn.sparse_softmax_cross_entropy_with_logits(labels=labels, logits=logits)
 
-
 def acc_tf(real, pred):
     correct_prediction = tf.equal(tf.argmax(input=real, axis=1), tf.argmax(input=pred, axis=1))
     accuracy = tf.reduce_mean(input_tensor=tf.cast(correct_prediction, precision))
@@ -120,11 +119,13 @@ def inputs_2_tf(input_vars, input_hebb, scalings, freqs):
     inputs_dict = DotDict({'x': tf.transpose(tf.constant(input_vars.xs, dtype=precision, name='x'), (2, 0, 1)),
                            'x_': tf.split(tf.constant(input_vars.x_s, dtype=precision, name='x_'), axis=1,
                                           num_or_size_splits=freqs),
-                           #'x_all': tf.constant(input_vars.xs_all, dtype=precision, name='x_all'),
                            'x_two_hot': tf.transpose(tf.constant(input_vars.xs_two_hot, dtype=precision, name='x_2ht'),
                                                      (2, 0, 1)),
-                            'x_two_hot_all': tf.constant(input_vars.xs_two_hot_all, dtype=precision, name='x_2ht_all'),
                            'g': tf.constant(input_vars.gs, dtype=precision, name='g'),
+                           'ca3_prev': tf.constant(input_vars.ca3_prev, dtype=precision, name='ca3_prev'),
+                           'ca1_prev': tf.constant(input_vars.ca1_prev, dtype=precision, name='ca1_prev'),
+                           'p2g_prev': tf.constant(input_vars.p2g_prev, dtype=precision, name='p2g_prev'),
+                           'g_prev': tf.constant(input_vars.g_prev, dtype=precision, name='g_prev'),
                            'd': tf.transpose(tf.constant(input_vars.ds, dtype=precision, name='d'), (2, 0, 1)),
                            'hebb_mat': tf.constant(input_hebb.a_rnn, dtype=precision, name='hebb_mat'),
                            'hebb_mat_inv': tf.constant(input_hebb.a_rnn_inv, dtype=precision, name='hebb_mat_inv'),

@@ -139,7 +139,7 @@ class Rectangle(Environment):
         position[0] = 0
         # choose random action to have gotten to start-state - doesn't get used as g_prior is for first state
         direc[0, 0] = 1
-        print("TIME Step",time_steps)
+        #print("TIME Step",time_steps)
         #print("self.par.env.bias_type=",self.par.env.bias_type)
         #print("self.height * self.width",self.height , self.width)
         move_dir = 'south'
@@ -278,7 +278,7 @@ class Rectangle(Environment):
         return angle
 
     def get_node_positions(self, cells=None, _plot_specs=None, _mask=None):
-        print("width",self.width)
+        #print("width",self.width)
         xs, ys = np.meshgrid(np.arange(self.width), np.arange(self.height))
         xs = xs.flatten() - (self.width - 1) / 2
         ys = - (ys.flatten() - (self.height - 1) / 2)

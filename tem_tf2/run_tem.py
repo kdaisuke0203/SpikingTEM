@@ -7,19 +7,20 @@
 import data_utils
 import model_utils
 import parameters
+
 import numpy as np
 import os
 # cpu
 #os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 #os.environ["TF_ENABLE_ONEDNN_OPTS"] = "1"
 import tensorflow as tf
+
 import glob
+
 import shutil
 import tem_model as tem
 import time
 import importlib
-import math
-import tensorflow as tf
 
 
 importlib.reload(tem)
@@ -45,7 +46,7 @@ model = tem.TEM(params)
 
 # Create a logger to write log output to file
 logger_sums = data_utils.make_logger(run_path, 'summaries')
-logger_envs = data_utils.make_logger(run_path, 'env_details')
+#logger_envs = data_utils.make_logger(run_path, 'env_details')
 # Create a tensor board to stay updated on training progress. Start tensorboard with tensorboard --logdir=runs
 summary_writer = tf.summary.create_file_writer(train_path)
 
@@ -95,7 +96,7 @@ train_dict = data_utils.get_initial_data_dict(params)
 
 msg = 'Training Started'
 logger_sums.info(msg)
-logger_envs.info(msg)
+#logger_envs.info(msg)
 for train_i in range(params.train_iters): #for train_i in range(params.train_iters):
     print(train_i,"/",params.train_iters)
     
@@ -103,7 +104,7 @@ for train_i in range(params.train_iters): #for train_i in range(params.train_ite
     if sum(train_dict.env_steps == 0) > 0:
         msg = str(sum(train_dict.env_steps == 0)) + ' New Environments ' + str(train_i) + ' ' + str(
             train_i * params.seq_len)
-        logger_envs.info(msg)
+        #logger_envs.info(msg)
 
     # Get scaling parameters
     scalings = parameters.get_scaling_parameters(train_i, params)
@@ -191,13 +192,13 @@ for train_i in range(params.train_iters): #for train_i in range(params.train_ite
     if train_i % params.save_interval == 0:# and train_i > 0:
         #start_time = time.time()
         
-        #data_utils.save_model_outputs(model, model_utils, train_i, save_path, params)
+        # data_utils.save_model_outputs(test_step, train_i, save_path, params)
         print("Saving model params")
         data_utils.save_params(params, save_path, script_path, train_i)
 
         # save model checkpoint
-        msg = ("it={:.0f}, lxP={:.2f}, lxG={:.2f}, lxGt={:.2f}, lp={:.2f}, lg={:.2f}, lp_reg={:.2f}, lg_reg={:.2f}").format(train_i, losses.lx_p, losses.lx_g, losses.lx_gt, losses.lp,
-                                      losses.lg, losses.lp_reg, losses.lg_reg)
+        msg = ("it={:.0f}, lxP={:.2f}, lxG={:.2f}, lxGt={:.2f}, lp={:.2f}, lg={:.4f}, lg_reg={:.4f}").format(train_i, losses.lx_p, losses.lx_g, losses.lx_gt, losses.lp,
+                                      losses.lg, losses.lg_reg)
         logger_sums.info(msg)
         model.save_weights(model_path + '/tem_' + str(train_i))
         """logger_sums.info("save data time {:.2f}, train_i={:.2f}, total_steps={:.2f}".format(time.time() - start_time,

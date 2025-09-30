@@ -14,8 +14,7 @@ import datetime
 import logging
 import time
 from distutils.dir_util import copy_tree
-import poisson_spike
-np.set_printoptions(precision=3)
+
 
 def cell_norm_online(cells, positions, current_cell_mat, pars):
     # for separate environments within each batch
@@ -276,47 +275,55 @@ def initialise_hebb(env_steps, data_dict, pars):
 
 
 def prepare_cell_timeseries(data, prev_data, pars):
-    gs, g2ps, g_gens, ps, x2ps, pos, xs, xs_gt = data
-    gs_, g2ps_, g_gens_, ps_, x2ps_, pos_, xs_, xs_gt_ = prev_data
+    gs, gens, ps, dgs, ca3s, ca1_spikes, g_spikes, pos, xs, xs_gt = data
+    gs_, gens_, ps_, dgs_, ca3s_, ca1_spikes_, g_spikes_, pos_, xs_, xs_gt_ = prev_data
     # convert to batch_size x cells x timesteps
     g1s = np.transpose(np.array(cp.deepcopy(gs)), [1, 2, 0])
-    g2p1s = np.transpose(np.array(cp.deepcopy(g2ps)), [1, 2, 0])
-    g_gen1s = np.transpose(np.array(cp.deepcopy(g_gens)), [1, 2, 0])
+    gen1s = np.transpose(np.array(cp.deepcopy(gens)), [1, 2, 0])
     p1s = np.transpose(np.array(cp.deepcopy(ps)), [1, 2, 0])
-    x2p1s = np.transpose(np.array(cp.deepcopy(x2ps)), [1, 2, 0])
+    dg1s = np.transpose(np.array(cp.deepcopy(dgs)), [1, 2, 0])
+    ca31s = np.transpose(np.array(cp.deepcopy(ca3s)), [1, 2, 0])
+    ca1_spike1s = np.transpose(np.array(cp.deepcopy(ca1_spikes)), [1, 2, 0, 3])
+    g_spike1s = np.transpose(np.array(cp.deepcopy(g_spikes)), [1, 2, 0, 3])
     g1s = g1s[:pars.n_envs_save, :, :]
-    g2p1s = g2p1s[:pars.n_envs_save, :, :]
-    g_gen1s = g_gen1s[:pars.n_envs_save, :, :]
+    gen1s = gen1s[:pars.n_envs_save, :, :]
     p1s = p1s[:pars.n_envs_save, :, :]
-    x2p1s = x2p1s[:pars.n_envs_save, :, :]
+    dg1s = dg1s[:pars.n_envs_save, :, :]
+    ca31s = ca31s[:pars.n_envs_save, :, :]
+    ca1_spike1s = ca1_spike1s[:pars.n_envs_save, :, :,:]
+    g_spike1s = g_spike1s[:pars.n_envs_save, :, :,:]
 
     xgt1s = np.transpose(np.array(cp.deepcopy(xs_gt)), [1, 2, 0])
     xgt1s = xgt1s[:pars.n_envs_save, :, :]
     x1s = xs[:pars.n_envs_save, :, :]
 
-    grids, g2p_grids, gen_grids, places, x2places, positions, senses, senses_pred = [], [], [], [], [], [], [], []
+    grids, gen_grids, places, dgs, ca3s, ca1_spikes, g_spikes, positions, senses, senses_pred = [], [], [], [], [], [], [], [], [], []
 
     for env in range(pars.n_envs_save):
         if gs_ is None:
             grids.append(cp.deepcopy(g1s[env]))
-            g2p_grids.append(cp.deepcopy(g2p1s[env]))
-            gen_grids.append(cp.deepcopy(g_gen1s[env]))
+            gen_grids.append(cp.deepcopy(gen1s[env]))
             places.append(cp.deepcopy(p1s[env]))
-            x2places.append(cp.deepcopy(x2p1s[env]))
+            dgs.append(cp.deepcopy(dg1s[env]))
+            ca3s.append(cp.deepcopy(ca31s[env]))
+            ca1_spikes.append(cp.deepcopy(ca1_spike1s[env]))
+            g_spikes.append(cp.deepcopy(g_spike1s[env]))
             positions.append(cp.deepcopy(pos[env]))
             senses.append(cp.deepcopy(x1s[env]))
             senses_pred.append(cp.deepcopy(xgt1s[env]))
         else:
             grids.append(np.concatenate((gs_[env], g1s[env]), axis=1))
-            g2p_grids.append(np.concatenate((g2ps_[env], g2p1s[env]), axis=1))
-            gen_grids.append(np.concatenate((g_gens_[env], g_gen1s[env]), axis=1))
+            gen_grids.append(np.concatenate((gens_[env], gen1s[env]), axis=1))
             places.append(np.concatenate((ps_[env], p1s[env]), axis=1))
-            x2places.append(np.concatenate((x2ps_[env], x2p1s[env]), axis=1))
+            dgs.append(np.concatenate((dgs_[env], dg1s[env]), axis=1))
+            ca3s.append(np.concatenate((ca3s_[env], ca31s[env]), axis=1))
+            ca1_spikes.append(np.concatenate((ca1_spikes_[env], ca1_spike1s[env]), axis=1))
+            g_spikes.append(np.concatenate((g_spikes_[env], g_spike1s[env]), axis=1))
             positions.append(np.concatenate((pos_[env], pos[env]), axis=0))
             senses.append(np.concatenate((xs_[env], x1s[env]), axis=1))
             senses_pred.append(np.concatenate((xs_gt_[env], xgt1s[env]), axis=1))
 
-    return [grids, g2p_grids, gen_grids, places, x2places, positions, senses, senses_pred]
+    return [grids, gen_grids, places, dgs, ca3s, ca1_spikes, g_spikes, positions, senses, senses_pred]
 
 
 def prepare_input(data_dict, pars, start_i=None):
@@ -336,16 +343,15 @@ def prepare_input(data_dict, pars, start_i=None):
 
     # get 2-hot encoding
     xs_two_hot = parameters.onehot2twohot(xs, data_dict.two_hot_table, pars.s_size_comp)
-    xs_two_hot_all = []
-    for i in range(xs_two_hot.shape[2]):
-        xs_two_hot_all.append(poisson_spike.generate_poisson_spikes(2*xs_two_hot[:,:,i], pars.spike_windows))
-    xs_two_hot_all = np.array(xs_two_hot_all)
     # model input data
     data_dict.inputs = model_utils.DotDict({'xs': xs,
                                             'x_s': data_dict.variables.x_s,
                                             'xs_two_hot': xs_two_hot,
-                                            'xs_two_hot_all': xs_two_hot_all,
                                             'gs': data_dict.variables.gs,
+                                            'ca3_prev': data_dict.variables.ca3_prev,
+                                            'ca1_prev': data_dict.variables.ca1_prev,
+                                            'p2g_prev': data_dict.variables.p2g_prev,
+                                            'g_prev': data_dict.variables.g_prev,
                                             'ds': data_dict.bptt_data.direc,
                                             'seq_index': np.array(data_dict.env_steps),
                                             's_visited': s_visited,
@@ -385,6 +391,10 @@ def get_initial_data_dict(pars):
                                      'variables':
                                          {'gs': np.zeros((pars.batch_size, pars.g_size)),
                                           'x_s': np.zeros((pars.batch_size, pars.s_size_comp * pars.n_freq)),
+                                          'ca3_prev': np.zeros((pars.batch_size, pars.p_size, pars.spike_windows)),
+                                          'ca1_prev': np.zeros((pars.batch_size, pars.p_size, pars.spike_windows)),
+                                          'p2g_prev': np.zeros((pars.batch_size, pars.g_size, pars.spike_windows)),
+                                          'g_prev': np.zeros((pars.batch_size, pars.g_size, pars.spike_windows)),
                                           # Visited x state by y action (pars.n_actions + 1 as
                                           # 'stay still' is the extra action)
                                           'edge_visits': np.zeros((pars.batch_size,
@@ -431,7 +441,7 @@ def initialise_environments(curric_env, env_steps, pars, test=False):
             # asyncrounous environment walks - each env will have different walk length
             # shorter walks for smaller environments
             probs = np.ones(pars.env.seq_jitter)
-            batch_rn = 4*curric_env.n_restart + 1*np.random.choice(np.arange(pars.env.seq_jitter), p=probs / sum(probs))
+            batch_rn = 3*curric_env.n_restart + 1*np.random.choice(np.arange(pars.env.seq_jitter), p=probs / sum(probs))
             # 40 = 2*rep_num_k , environments.py
             #if batch_rn > 40:
                 #batch_rn = 40
@@ -441,7 +451,7 @@ def initialise_environments(curric_env, env_steps, pars, test=False):
         # needs to be a multiple of pars.seq_len
         walk_len -= walk_len % pars.seq_len
         
-        print("walk_len",walk_len)
+        #print("walk_len",walk_len)
         curric_env.envs[b].walk_len = walk_len
         curric_env.walk_len[b] = walk_len
 
@@ -485,8 +495,8 @@ def save_model_outputs(model, model_utils_, train_i, save_path, pars):
     Takes a model and collects cell and environment timeseries from a forward pass
     """
     # Initialise timeseries data to collect
-    gs_timeseries, g2ps_timeseries, g_gens_timeseries, ps_timeseries, x2ps_timeseries, pos_timeseries, xs_timeseries, xs_gt_timeseries, variables_test = \
-        None, None, None, None, None, None, None, None, None
+    gs_timeseries, gens_timeseries, ps_timeseries, dgs_timeseries, ca3s_timeseries, ca1_spikes_timeseries, g_spikes_timeseries, pos_timeseries, xs_timeseries, xs_gt_timeseries, variables_test = \
+        None, None, None, None, None, None, None, None, None, None, None
     # Initialise model input data
     test_dict = get_initial_data_dict(pars)
     # Run forward pass
@@ -500,25 +510,29 @@ def save_model_outputs(model, model_utils_, train_i, save_path, pars):
         variables_test, re_input_test = model(inputs_test_tf, training=False)
         re_input_test = model_utils_.tf2numpy(re_input_test)
 
-        test_dict.variables.gs, test_dict.variables.x_s, test_dict.hebb.a_rnn, test_dict.hebb.a_rnn_inv = \
-            re_input_test.g, re_input_test.x_s, re_input_test.a_rnn, re_input_test.a_rnn_inv
+        test_dict.variables.gs, test_dict.variables.x_s, test_dict.hebb.a_rnn, test_dict.hebb.a_rnn_inv, test_dict.variables.ca3_prev, test_dict.variables.p2g_prev, test_dict.variables.ca1_prev, test_dict.variables.g_prev = \
+            re_input_test.g, re_input_test.x_s, re_input_test.a_rnn, re_input_test.a_rnn_inv, re_input_test.ca3_prev, re_input_test.p2g_prev, re_input_test.ca1_prev, re_input_test.g_prev
 
         # Collect environment step data: position and observation
         position = test_dict.bptt_data.position
         xs = test_dict.inputs.xs
         # Collect model step data: cell activity (converted to numpy)
         gs_numpy = [x.numpy() for x in variables_test.g.g]
-        g2ps_numpy = [x.numpy() for x in variables_test.g.g2p]
-        g_gens_numpy = [x.numpy() for x in variables_test.g.g_gen]
+        gens_numpy = [x.numpy() for x in variables_test.g.g_gen]
         ps_numpy = [x.numpy() for x in variables_test.p.p]
-        x2ps_numpy = [x.numpy() for x in variables_test.p.x2p]
+        #ps_numpy = [x.numpy() for x in variables_test.p.p_g]
+        dgs_numpy = [x.numpy() for x in variables_test.p.dg]
+        ca3s_numpy = [x.numpy() for x in variables_test.p.ca3]
+        ca1_spikes_numpy = [x.numpy() for x in variables_test.ca1_prev]
+        g_spikes_numpy = [x.numpy() for x in variables_test.g_prev]
+        #g_spikes_numpy = [x.numpy() for x in variables_test.g2g_spike]
         x_gt_numpy = [x.numpy() for x in variables_test.pred.x_gt]
 
         # Update timeseries
-        prev_cell_timeseries = [gs_timeseries, g2ps_timeseries, g_gens_timeseries, ps_timeseries, x2ps_timeseries, pos_timeseries, xs_timeseries, xs_gt_timeseries]
-        save_data_timeseries = [gs_numpy, g2ps_numpy, g_gens_numpy, ps_numpy, x2ps_numpy, position, xs, x_gt_numpy]
+        prev_cell_timeseries = [gs_timeseries, gens_timeseries, ps_timeseries, dgs_timeseries, ca3s_timeseries, ca1_spikes_timeseries, g_spikes_timeseries, pos_timeseries, xs_timeseries, xs_gt_timeseries]
+        save_data_timeseries = [gs_numpy, gens_numpy, ps_numpy, dgs_numpy, ca3s_numpy, ca1_spikes_numpy, g_spikes_numpy, position, xs, x_gt_numpy]
         cell_timeseries = prepare_cell_timeseries(save_data_timeseries, prev_cell_timeseries, pars)
-        gs_timeseries, g2ps_timeseries, g_gens_timeseries, ps_timeseries, x2ps_timeseries, pos_timeseries, xs_timeseries, xs_gt_timeseries = cell_timeseries
+        gs_timeseries, gens_timeseries, ps_timeseries, dgs_timeseries, ca3s_timeseries, ca1_spikes_timeseries, g_spikes_timeseries, pos_timeseries, xs_timeseries, xs_gt_timeseries = cell_timeseries
 
         ii += 1
         print(str(ii) + '/' + str(int(len(test_dict.walk_data.position[0]) / pars.seq_len)), end=' ')
@@ -529,14 +543,14 @@ def save_model_outputs(model, model_utils_, train_i, save_path, pars):
     np.save(save_path + '/final_variables' + str(train_i),
             model_utils_.DotDict.to_dict(model_utils_.tf2numpy(variables_test)), allow_pickle=True)
 
-    #print("ps_timeseries",ps_timeseries)
-    #print("x2ps_timeseries",x2ps_timeseries)
     # Save all timeseries to file
     np.save(save_path + '/gs_timeseries_' + str(train_i), gs_timeseries)
-    np.save(save_path + '/g2ps_timeseries_' + str(train_i), g2ps_timeseries)
-    np.save(save_path + '/g_gens_timeseries_' + str(train_i), g_gens_timeseries)
+    np.save(save_path + '/gens_timeseries_' + str(train_i), gens_timeseries)
     np.save(save_path + '/ps_timeseries_' + str(train_i), ps_timeseries)
-    np.save(save_path + '/x2ps_timeseries_' + str(train_i), x2ps_timeseries)
+    np.save(save_path + '/dgs_timeseries_' + str(train_i), dgs_timeseries)
+    np.save(save_path + '/ca3s_timeseries_' + str(train_i), ca3s_timeseries)
+    np.save(save_path + '/ca1_spikes_timeseries_' + str(train_i), ca1_spikes_timeseries)
+    np.save(save_path + '/g_spikes_timeseries_' + str(train_i), g_spikes_timeseries)
     np.save(save_path + '/pos_timeseries_' + str(train_i), pos_timeseries)
     np.save(save_path + '/xs_timeseries_' + str(train_i), xs_timeseries)
     np.save(save_path + '/xs_gt_timeseries_' + str(train_i), xs_gt_timeseries)
