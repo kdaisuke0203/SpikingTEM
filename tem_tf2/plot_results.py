@@ -17,11 +17,12 @@ import seaborn as sns
 import tensorflow as tf
 import networkx as nx
 import matplotlib.pyplot as plt
+from scipy.signal import correlate2d
 
 # ADD YOUR DIRECTORIES HERE
 path = os.path.join(os.path.dirname(os.getcwd()), "Summaries/").replace("\\", "/")
 # Choose which training run data to load
-date = '2025-09-30'
+date = '2025-10-01'
 for i in range(1):
     run = str(i)
     index_load = None
@@ -125,11 +126,75 @@ for i in range(1):
     env0 = 0 #2
     env1 = 1
     envs = [env0, env1]
-    pf.square_plot(g_all, env0, params, plot_specs, name='g0', lims=g_lim, mask=masks[env0], env_class=env_dict.curric_env.envs[env0], dates=date, runs=run)
-    pf.square_plot(gen_all, env0, params, plot_specs, name='gen', lims=g_lim, mask=masks[env0], env_class=env_dict.curric_env.envs[env0], dates=date, runs=run)
+    #pf.square_plot(g_all, env0, params, plot_specs, name='g0', lims=g_lim, mask=masks[env0], env_class=env_dict.curric_env.envs[env0], dates=date, runs=run)
+    _, auto_map = pf.square_plot(gen_all, env0, params, plot_specs, name='gen', lims=g_lim, mask=masks[env0], env_class=env_dict.curric_env.envs[env0], dates=date, runs=run)
     plot_specs.n_cells_freq = params.n_place_all
     plot_specs.split_freqs = False
-    pf.square_plot(p_all, env0, params, plot_specs, name='p0', lims=p_lim, mask=masks[env0], env_class=env_dict.curric_env.envs[env0], dates=date, runs=run)
+    np.save("auto_map1.npy", auto_map)
+    auto_m1 = np.load("auto_map1.npy")
+    auto_m2 = np.load("auto_map2.npy")
+    cross_corr_maps = []
+
+    for i in range(15):
+        map1 = auto_m1[i]
+        map2 = auto_m2[i]
+        
+        # 平均0にして cross-correlation
+        map1_zero = map1 - map1.mean()
+        map2_zero = map2 - map2.mean()
+        
+        cc = correlate2d(map1_zero, map2_zero, mode='full')  # 'full' でシフトを全て計算
+        cross_corr_maps.append(cc)
+
+    
+    fig, axes = plt.subplots(1, 15, figsize=(12, 4))
+    for i in range(15):  # 最初の3つだけ表示
+        axes[i].imshow(cross_corr_maps[i], cmap="viridis", origin="lower")
+        axes[i].set_title(f"Cross-corr {i}")
+        axes[i].axis("off")
+    plt.tight_layout()
+    plt.show()
+
+    ##############
+    """spatial_information = pf.square_plot(p_all, env0, params, plot_specs, pos=pos_timeseries, name='p', lims=p_lim, mask=masks[env0], env_class=env_dict.curric_env.envs[env0], dates=date, runs=run)
+    np.save("spatial_information4.npy", spatial_information)
+    SI1 = np.load("spatial_information1.npy")
+    SI2 = np.load("spatial_information2.npy")
+    SI3 = np.load("spatial_information3.npy")
+    SI4 = np.load("spatial_information4.npy")
+    data_list = [SI1, SI2, SI3, SI4]
+    #labels = ['data1', 'data2', 'data3']
+
+    bins = 10
+    bin_edges = np.linspace(min([d.min() for d in data_list]),
+                            max([d.max() for d in data_list]),
+                            bins+1)
+
+    # 各データのヒストグラムを計算
+    hist_values = []
+    for data in data_list:
+        counts, _ = np.histogram(data, bins=bin_edges)
+        hist_values.append(counts)
+
+    hist_values = np.array(hist_values)  # shape (3, bins)
+
+    # 平均と標準誤差
+    hist_mean = hist_values.mean(axis=0)
+    hist_std = hist_values.std(axis=0, ddof=1)  # サンプル標準偏差
+
+    # 棒グラフで描画
+    x = np.arange(bins)  # 各ビンの位置
+    width = 0.8
+
+    fig, ax = plt.subplots(figsize=(8,5))
+    ax.bar(x, hist_mean, width=width, yerr=hist_std, capsize=5, alpha=0.7)
+    ax.set_xticks(x)
+    ax.set_xticklabels([f"{bin_edges[i]:.2f}-{bin_edges[i+1]:.2f}" for i in range(bins)], rotation=45)
+    ax.set_ylabel("Counts")
+    ax.set_xlabel("Bins")
+    plt.tight_layout()
+    plt.show()"""
+    #SI4 = np.load("spatial_information4.npy")
     #pf.square_plot(ca3_all, env0, params, plot_specs, name='ca3', lims=p_lim, mask=masks[env0], env_class=env_dict.curric_env.envs[env0], dates=date, runs=run)
 
     #pf.square_plot(dg_all, env0, params, plot_specs, name='dg', lims=p_lim, mask=masks[env0], env_class=env_dict.curric_env.envs[env0], dates=date, runs=run)

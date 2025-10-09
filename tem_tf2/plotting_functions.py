@@ -87,7 +87,7 @@ def compute_gridness(rate_map):
     return gridness
 
 
-def square_plot(cells, env, pars, plot_specs, name='sq', lims=(), mask=False, env_class=None, fig_dir=None, dates=None, runs=0):
+def square_plot(cells, env, pars, plot_specs, pos=None, name='sq', lims=(), mask=False, env_class=None, fig_dir=None, dates=None, runs=0):
     cell = cells[env]
     print("cells",cells.shape,"env",env,"cell",cell.shape)
     # number of cells we have
@@ -169,10 +169,12 @@ def square_plot(cells, env, pars, plot_specs, name='sq', lims=(), mask=False, en
     f.savefig((path + name) + ".png")
     #plt.close('all')"""
 
-    f2 = plt.figure(figsize=(18, 18))
+    f2 = plt.figure(figsize=(18, 9))
     grid_sq_count = 0
     grid_sq2_count = 0
     grid_count = 0
+    Spatial_information = []
+    g_map_all = []
 
     for grid in range(n):
         cell_ = cell[:, grid]
@@ -192,7 +194,7 @@ def square_plot(cells, env, pars, plot_specs, name='sq', lims=(), mask=False, en
         #print("grid",grid,"QQQQQQQQqq",g_map)
         gridness = compute_gridness(g_map)
         #print("grid",grid,"Gridness:",gridness)
-        auto_map = zoom(compute_autocorr(g_map), (1, 1.3), order=1)
+        auto_map = zoom(compute_autocorr(g_map), (1.2, 1), order=1)
         start = auto_map.shape[1] //2 - compute_autocorr(g_map).shape[1] //2 #- compute_autocorr(g_map).shape[0]) // 2
         end = auto_map.shape[1] //2 + compute_autocorr(g_map).shape[1] //2 
         auto_map = auto_map[:, start:end]
@@ -214,22 +216,30 @@ def square_plot(cells, env, pars, plot_specs, name='sq', lims=(), mask=False, en
            #'catrom', 'gaussian', 'bessel', 'mitchell', 'sinc', 'lanczos']
         im = ax.imshow(g_map, interpolation='spline16', cmap=plot_specs.cmap)
         ax.axis("off")
-        ax.set_title(f"#{grid}", fontsize=12)
-        #plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
-
-
-
+        ax.set_title(f"#{grid}", fontsize=14)
+        vmin, vmax = im.get_clim()
+        cbar = plt.colorbar(im, ax=ax, fraction=0.046, pad=0.1)
+        cbar.set_ticks([vmin, vmax])
+        cbar.ax.set_yticklabels([f"{vmin:.1f}", f"{vmax:.1f}"]) 
+        cbar.ax.tick_params(labelsize=12)
+        if name=='p':
+            Spatial_information.append(spatial_information(g_map, pos))
+            ax.set_title(f"{Spatial_information[grid]:.3f}", fontsize=16)
+    plt.subplots_adjust(wspace=0.75, hspace=0.01)
     #f plot_specs.save:
     #    f.savefig((fig_dir if fig_dir else './figures/' + name) + ".png", bbox_inches='tight')
     #print("save_dirs + name)",path + name)
     print("GRID SQ PERCENT:",grid_sq_count/n)
     print("GRID SQ2 PERCENT:",grid_sq2_count/n)
     print("GRID PERCENT:",grid_count/n)
+    #if name=='p':
+        #print("Spatial_information", Spatial_information)
     #plt.show()
-    f2.savefig((path + name) + "sm.png")
+    f2.savefig((path + name) + "sm.pdf")
     #plt.close('all')
 
-    """f3 = plt.figure(figsize=(18, 18))
+
+    f3 = plt.figure(figsize=(18, 18))
 
     for grid in range(n):
         cell_ = cell[:, grid]
@@ -246,27 +256,78 @@ def square_plot(cells, env, pars, plot_specs, name='sq', lims=(), mask=False, en
         widd = int(np.max(xs)-np.min(xs))+1
         #print("iiiii",int(np.max(xs)-np.min(xs)))
         g_map = cell_prepared.reshape(widd, widd)*10
+        g_map_all.append(g_map)
         #print("grid",grid,"QQQQQQQQqq",g_map)
-        auto_map = zoom(compute_autocorr(g_map), (1, 1.3), order=1)
+        auto_map = zoom(compute_autocorr(g_map), (1.3, 1), order=1)
         start = auto_map.shape[1] //2 - compute_autocorr(g_map).shape[1] //2 #- compute_autocorr(g_map).shape[0]) // 2
         end = auto_map.shape[1] //2 + compute_autocorr(g_map).shape[1] //2 
         auto_map = auto_map[:, start:end]
         #print("DDDDDDDDDD",auto_map.shape)
-        gridness = compute_gridness(g_map)
+        #gridness = compute_square_gridness(auto_map)
+        gridness = compute_square_gridness(g_map)
         #print("grid",grid,"Gridness:",gridness)
         ax = plt.gca()
         #gridness_sq = compute_square_gridness(compute_autocorr(g_map))
         #auto_map = zoom(auto_map, (compute_autocorr(g_map).shape[0]/auto_map.shape[0], 1), order=1)
-        ax.imshow(auto_map, interpolation='spline16', cmap=plot_specs.cmap)
+        #ax.imshow(auto_map, interpolation='spline16', cmap=plot_specs.cmap)
+        ax.imshow(compute_autocorr(g_map), interpolation='spline16', cmap=plot_specs.cmap)
+        #ax.imshow(auto_map, interpolation='spline16', cmap=plot_specs.cmap)
         ax.axis("off")
-        ax.set_title(f"#{grid}", fontsize=12)
+        #ax.set_title(f"gridness", fontsize=12)
+        ax.set_title(f"{gridness:.3f}", fontsize=16)
 
     #f plot_specs.save:
     #    f.savefig((fig_dir if fig_dir else './figures/' + name) + ".png", bbox_inches='tight')
     #print("save_dirs + name)",path + name)
     #plt.show()
-    f3.savefig((path + name) + "auto.png")"""
+    f3.savefig((path + name) + "auto.png")
     plt.close('all')
+
+    return np.array(Spatial_information), np.array(g_map_all)
+
+
+def spatial_information(rate_map, positions):
+    occupancy = compute_occupancy_from_bin_ids(positions)
+    mean_rate = np.sum(rate_map * occupancy)
+    valid = rate_map > 0  # log計算で0を避ける
+    info = np.sum(occupancy[valid] * (rate_map[valid] / mean_rate) *
+                  np.log2(rate_map[valid] / mean_rate))
+    return info
+
+def compute_occupancy_from_bin_ids(positions, n_bins=64, dt=1.0, reshape=(8,8), smooth_sigma=None):
+    """
+    positions: array-like shape (1, T) or (T,) containing integers 0..n_bins-1
+    n_bins: number of bins (default 64 for 8x8)
+    dt: sample interval in seconds (if provided, returns occupancy_time in seconds)
+    reshape: tuple to reshape occupancy vector to 2D map (default (8,8))
+    smooth_sigma: if not None, apply gaussian smoothing (sigma in bins) on the 2D occupancy map
+    Returns:
+      occupancy_prob: (n_bins,) normalized to sum 1.0
+      occupancy_time: (n_bins,) if dt provided (seconds), else None
+      occupancy_map: reshaped 2D occupancy map (reshape)
+      occupancy_map_smooth: smoothed 2D map if smooth_sigma given, else None
+      counts: raw counts per bin (n_bins,)
+    """
+    pos = np.asarray(positions).flatten()
+    valid_mask = (pos >= 0) & (pos < n_bins)
+    pos_valid = pos[valid_mask]
+    pos_valid = pos[(pos >= 0) & (pos < n_bins)].astype(int)
+
+    counts = np.bincount(pos_valid, minlength=n_bins).astype(float)
+    total_counts = counts.sum()
+    if total_counts == 0:
+        occupancy_prob = np.zeros_like(counts)
+    else:
+        occupancy_prob = counts / total_counts
+
+    occupancy_time = None
+    if dt is not None:
+        occupancy_time = counts * dt
+
+    # reshape to 2D map; note: choose ordering you want (here row-major)
+    occupancy_map = occupancy_prob.reshape(reshape)
+
+    return occupancy_map
 
 
 

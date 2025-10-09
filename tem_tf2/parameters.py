@@ -23,7 +23,7 @@ def default_params(width=None, height=None, world_type=None, batch_size=None):
 
     params.batch_size = len(env_width) if not batch_size else batch_size
     # seq_len - we truncate BPTT to sequences of this length
-    params.seq_len = 20  # 75  # 50
+    params.seq_len = 25  # 75  # 50
     params.max_states = int(wi*wi) #350
 
     # 'rectangle', 'hexagonal', 'family_tree', 'line_ti', 'wood2000', 'frank2000', 'grieves2016', 'sun2020', 'nieh2021'
@@ -31,7 +31,7 @@ def default_params(width=None, height=None, world_type=None, batch_size=None):
 
     # ENVIRONMENT params
     params.n_envs = params.batch_size
-    params.s_size = 15 #45
+    params.s_size = 10 #45
     params.asyncrounous_envs = True
     params = get_env_params(params, width, height=height)
     params.use_reward = True
@@ -53,10 +53,10 @@ def default_params(width=None, height=None, world_type=None, batch_size=None):
     params.spike_windows = 3
     params.k = 1
     params.tau = 0.4 #0.5
-    params.thr = 0.1 #0.1s
+    params.thr = 0.1
     params.v_min = -4.0 #-6.0
     params.v_max = 0.9 #0.1b#1.0s #0.6
-    params.v_reset = -3.0 #-3
+    params.v_reset = -4.0 #-3s, -3.5a
     params.d_repeat = 1
     params.ds_size = 150
     params.infer_g_type = 'g_p'  # 'g'
@@ -92,10 +92,12 @@ def default_params(width=None, height=None, world_type=None, batch_size=None):
                                        combins_table(params.s_size_comp, 2), params.s_size_comp)
 
     # TRAINING params
-    params.train_iters = 50000 #2000000
+    params.train_iters = 40000 #2000000
     params.train_on_visited_states_only = True
-    params.learning_rate_max = 6e-4#9.3e-4
-    params.learning_rate_min = 1e-5
+    params.learning_rate_max = 1e-3#9.3e-4
+    params.learning_rate_min = 5e-5
+    params.warmup = True
+    params.warmup_steps = 5000
     params.logsig_ratio = 6 #6
     params.logsig_offset = -2
 
@@ -106,7 +108,7 @@ def default_params(width=None, height=None, world_type=None, batch_size=None):
 
     # regularisation values
     params.g_reg_pen = 0.01
-    params.p_reg_pen = 0.6
+    params.p_reg_pen = 0.7
     params.weight_reg_val = 0.001
 
     # Number gradient updates for annealing (in number of gradient updates)
@@ -281,7 +283,22 @@ def get_scaling_parameters(index, par):
     p2g_use = sigmoid((index - par.p2g_use_it) / par.p2g_scale)
     l_r = (par.learning_rate_max - par.learning_rate_min) * (par.l_r_decay_rate ** (
             index / par.l_r_decay_steps)) + par.learning_rate_min
+
+    warmup_steps = par.warmup_steps  
+
+    if par.warmup:
+        if index < warmup_steps:
+            l_r = par.learning_rate_max * (index / warmup_steps)
+        else:
+            l_r = (par.learning_rate_max - par.learning_rate_min) * \
+                (par.l_r_decay_rate ** ((index - warmup_steps) / par.l_r_decay_steps)) \
+                + par.learning_rate_min
+
+
     l_r = np.maximum(l_r, par.learning_rate_min)
+
+
+
     g_cell_reg = 1 - np.minimum((index + 1) / par.g_reg_it, 1.0)
     p_cell_reg = 1 - np.minimum((index + 1) / par.p_reg_it, 1.0)
 
