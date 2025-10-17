@@ -9,7 +9,8 @@ from scipy.special import comb
 import itertools
 from model_utils import DotDict as Dd
 
-wi = 30
+wi = 40
+wi_h = 1
 env_width = [wi]
 env_height = [1]
 
@@ -26,13 +27,14 @@ def default_params(width=None, height=None, world_type=None, batch_size=None):
     # seq_len - we truncate BPTT to sequences of this length
     params.seq_len = 15  # 75  # 50
     params.max_states = int(wi*wi) #350
+    params.num_states = wi
 
     # 'rectangle', 'hexagonal', 'family_tree', 'line_ti', 'wood2000', 'frank2000', 'grieves2016', 'sun2020', 'nieh2021'
     params.world_type = 'rectangle' if not world_type else world_type
 
     # ENVIRONMENT params
     params.n_envs = params.batch_size
-    params.s_size = 15 #45
+    params.s_size = 10 #45
     params.asyncrounous_envs = True
     params = get_env_params(params, width, height=height)
     params.use_reward = True
@@ -46,19 +48,29 @@ def default_params(width=None, height=None, world_type=None, batch_size=None):
     # num gradient updates between detailed accuracy summaries
     params.sum_int_inferences = 400 #400
     # number of gradient steps between saving data
-    params.save_interval = int(20000 / params.seq_len)
+    params.save_interval = int(10000 / params.seq_len) #20000/
     # number of gradient steps between saving model
     params.save_model = 5 * params.save_interval
 
     # MODEL params
-    params.spike_windows = 5
+    params.spike_windows = 8
+    params.k = 1
+    params.tau = 0.5 #0.5
+    params.thr = 0.1
+    params.theta_amp = params.thr*10
+    params.v_min = -6.0 #-6.0
+    params.v_max = 0.9 #0.1b#1.0s #0.6
+    params.v_reset = -3.0 #-3
+    params.d_repeat = 1
+    params.ds_size = 150
     params.infer_g_type = 'g_p'  # 'g'
     params.two_hot = False
+    params.stdp = True
     params.s_size_comp = 10 #10
 
     # numbers of variables for each frequency
-    params.n_grids_all = [30, 30, 10] #[30, 30, 24, 18, 18]
-    params.grid2phase = 4 #3
+    params.n_grids_all = [80] #[30, 30, 24, 18, 18]
+    params.grid2phase = 10 #3
     params.n_phases_all = [int(n_grid / params.grid2phase) for n_grid in params.n_grids_all]
     params.tot_phases = sum(params.n_phases_all)
     params.n_freq = len(params.n_phases_all)
@@ -66,11 +78,12 @@ def default_params(width=None, height=None, world_type=None, batch_size=None):
     params.n_place_all = [p * params.s_size_comp for p in params.n_phases_all]
     print("params.n_place_all",params.n_place_all)
     params.p_size = sum(params.n_place_all)
-    params.s_size_comp_hidden = 10 * params.s_size_comp#20 * params.s_size_comp
+    params.dg_size = sum(params.n_place_all)*1
+    params.s_size_comp_hidden = 2 * params.s_size_comp#20 * params.s_size_comp
     params.prediction_freq = 0
 
     # These are smoothing parameters, so 'inverse frequencies': higher params.freqs = more smoothing = lower frequency
-    params.freqs = sorted([0.01, 0.7, 0.91, 0.97, 0.99, 0.9995])[:params.n_freq]
+    params.freqs = sorted([0.81, 0.8, 0.91, 0.97, 0.99, 0.9995])[:params.n_freq] #[0.01, 0.7, 0.91, 0.97, 0.99, 0.9995]
     params.smooth_only_on_movement = False
 
     # initialisations
@@ -83,34 +96,36 @@ def default_params(width=None, height=None, world_type=None, batch_size=None):
                                        combins_table(params.s_size_comp, 2), params.s_size_comp)
 
     # TRAINING params
-    params.train_iters = 2000 #2000000
+    params.train_iters = 40000 #2000000
     params.train_on_visited_states_only = True
-    params.learning_rate_max = 9.3e-4
-    params.learning_rate_min = 8e-5
+    params.learning_rate_max = 7e-4#9.3e-4
+    params.learning_rate_min = 5e-5
+    params.warmup_steps = 1000
+    params.warmup = True
     params.logsig_ratio = 6 #6
     params.logsig_offset = -2
 
     # losses
-    params.which_costs = ['lx_p', 'lx_g', 'lx_gt', 'lp', 'lg', 'lg_reg', 'lp_reg']
+    params.which_costs = ['lx_p', 'lx_g', 'lx_gt', 'lp', 'lg', 'lg_reg', 'lp_reg']#, 'l_gp'
     if 'p' in params.infer_g_type:
         params.which_costs.append('lp_x')
 
     # regularisation values
-    params.g_reg_pen = 0.01
-    params.p_reg_pen = 0.02
+    params.g_reg_pen = 0.1
+    params.p_reg_pen = 0.4
     params.weight_reg_val = 0.001
 
     # Number gradient updates for annealing (in number of gradient updates)
-    params.temp_it = 2000 #2000
+    params.temp_it = 4000 #2000
     params.forget_it = 200
     params.hebb_learn_it = 16000
     params.p2g_use_it = 0
     params.p2g_scale = 200
     params.p2g_sig_val = 10000
-    params.g_reg_it = 4000000 #40000000
-    params.p_reg_it = 4000
+    params.g_reg_it = 4000 #4000a
+    params.p_reg_it = 400000
     params.l_r_decay_steps = 4000 #4000
-    params.l_r_decay_rate = 0.5
+    params.l_r_decay_rate = 0.5 #0.5
 
     # HEBB
     params.hebb_lim = 1
@@ -144,7 +159,7 @@ def default_params(width=None, height=None, world_type=None, batch_size=None):
     params.R_G_F_f = connectivity_matrix(conn_hierarchical, params.freqs) if params.world_type != 'tank' else \
         connectivity_matrix(conn_separate, params.freqs)
     params.mask_g = get_mask(params.n_grids_all, params.n_grids_all, params.R_G_F_f)
-    params.d_mixed_size = 15 if params.world_type == 'square' else 20
+    params.d_mixed_size = 10 #15 if params.world_type == 'square' else 20 #20
 
     # CHANGES SINCE NOW USING AS LITTLE CONTROL FLOW IN GRAPH AS POSSIBLE.
     # The following takes the existing connectivity setup but reorganises it, to optimise for tensorflow performance
@@ -181,7 +196,8 @@ def get_env_params(par, width, height):
                       [width] * par.batch_size,
                       'heights': env_height if not height else
                       [height] * par.batch_size,
-                      'rels': ['down', 'up', 'left', 'right', 'stay still'],
+                      #'rels': ['down', 'up', 'left', 'right', 'stay still'],
+                      'rels': ['left', 'right'],
                       })
 
 
@@ -206,7 +222,7 @@ def get_n_states(par, width):
     world_type, n_envs = par.world_type, par.n_envs
     #poss_heights = [10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10]
     #poss_heights = [8, 8, 9, 9, 11, 11, 12, 12, 8, 8, 9, 9, 11, 11, 12, 12]
-    poss_heights = env_width
+    poss_heights = env_height
     reward_pos = [[0]] * par.batch_size
     no_reward_pos = [[0]] * par.batch_size
     reward_value = np.ones(par.batch_size)
@@ -220,7 +236,7 @@ def get_n_states(par, width):
         #    if not width else [width] * par.batch_size
         poss_widths = env_width \
             if not width else [width] * par.batch_size
-        poss_heights = env_width \
+        poss_heights = env_height \
             if not width else [width] * par.batch_size
         n_states = [x * y for x, y in zip(poss_widths, poss_heights)]
         rels = ['down', 'up', 'left', 'right', 'stay still']
@@ -272,6 +288,15 @@ def get_scaling_parameters(index, par):
     p2g_use = sigmoid((index - par.p2g_use_it) / par.p2g_scale)
     l_r = (par.learning_rate_max - par.learning_rate_min) * (par.l_r_decay_rate ** (
             index / par.l_r_decay_steps)) + par.learning_rate_min
+    warmup_steps = par.warmup_steps  
+
+    if par.warmup:
+        if index < warmup_steps:
+            l_r = par.learning_rate_max * (index / warmup_steps)
+        else:
+            l_r = (par.learning_rate_max - par.learning_rate_min) * \
+                (par.l_r_decay_rate ** ((index - warmup_steps) / par.l_r_decay_steps)) \
+                + par.learning_rate_min
     l_r = np.maximum(l_r, par.learning_rate_min)
     g_cell_reg = 1 - np.minimum((index + 1) / par.g_reg_it, 1.0)
     p_cell_reg = 1 - np.minimum((index + 1) / par.p_reg_it, 1.0)

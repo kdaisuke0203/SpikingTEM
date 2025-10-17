@@ -14,7 +14,9 @@ import gzip
 import copy as cp
 import numpy as np
 import os 
-
+from scipy.ndimage import gaussian_filter1d
+from scipy.signal import argrelextrema
+from scipy.signal import correlate
 interpolation_method = 'None'
 fontsize = 25
 linewidth = 4
@@ -31,6 +33,7 @@ def square_plot(cells, env, pars, plot_specs, name='sq', lims=(), mask=False, en
     print("xs, ys",xs.shape, ys.shape)
     x_dim = max(xs) - min(xs)
     y_dim = 1 #max(ys) - min(ys)
+    path = os.path.join(os.path.dirname(os.getcwd()), "Summaries/"+dates+"/run"+runs+"/").replace("\\", "/")
     if plot_specs.cell_num or plot_specs.max_min:
         y_dim = y_dim * 2
     # work out num cols and num rows of subplots
@@ -45,13 +48,12 @@ def square_plot(cells, env, pars, plot_specs, name='sq', lims=(), mask=False, en
         n_cols = np.ceil(np.sqrt(n * y_dim / x_dim))
         n_rows = np.ceil(np.sqrt(n * x_dim / y_dim))
 
-    f = plt.figure(figsize=(18, 18))
+    """f = plt.figure(figsize=(18, 18))
     add_on = 0
     print("number of cells",n)
     print("n_cols",n_cols,"n_rows",n_rows)
     for grid in range(n):
         cell_ = cell[:, grid]
-        #print("cell_",cell_)
 
         if plot_specs.split_freqs:
             if sum(np.cumsum(plot_specs.n_cells_freq) == grid) > 0:
@@ -61,7 +63,9 @@ def square_plot(cells, env, pars, plot_specs, name='sq', lims=(), mask=False, en
             plt.subplot(n_rows, n_cols, grid + 1)
         xs, ys, cell_prepared = env_class.get_node_positions(cells=cell_, _plot_specs=plot_specs, _mask=mask)
         cell_prepared = cell_prepared[:xs.shape[0]]
-        #print("n",grid,"cell_prepared",cell_prepared)
+        #print("xs",xs)
+        #print("ys",ys)
+        #print("cell",grid, list(map('{:.2f}'.format,cell_prepared)))
         s = plot_specs[old2new(pars.world_type)].marker_size
         marker = plot_specs[old2new(pars.world_type)].marker_shape
 
@@ -92,10 +96,11 @@ def square_plot(cells, env, pars, plot_specs, name='sq', lims=(), mask=False, en
         if plot_specs.cell_num:
             ax.set_title(str(grid), {'fontsize': 20})
     plt.tight_layout(pad=0.35)
-    plt.show()
+    #plt.show()"""
 
-    f2 = plt.figure(figsize=(18, 18))
-
+    f2 = plt.figure(figsize=(14, 16))
+    n_rows = 30
+    n_cols = 10
     for grid in range(n):
         cell_ = cell[:, grid]
         #print("cell_",cell_.shape)
@@ -115,12 +120,69 @@ def square_plot(cells, env, pars, plot_specs, name='sq', lims=(), mask=False, en
         #print("iiiii",int(np.max(xs)-np.min(xs)))
         g_map = cell_prepared.reshape(1,widd)
         ax = plt.gca()
-        print("g_map",g_map)
-        ax.imshow(g_map, interpolation='spline16', cmap=plot_specs.cmap)
+        ax.set_title(f"#{grid+1}")
+        ax.axis("off")
+        #print("g_map",g_map.shape)
+        ax.imshow(g_map[:,1:39], interpolation='spline16', cmap=plot_specs.cmap, aspect='auto')
+    #plt.show()
+    plt.subplots_adjust(wspace=0.2, hspace=2.)
+    f2.savefig((path + name) + "sm2.pdf", bbox_inches='tight')
 
-    plt.show()
-    f2.savefig((path + name) + "sm2.png")
+    ####### firing rate  ##############################
+    #f3 = plt.figure(figsize=(18, 18))
+
+    n = np.shape(cell)[1]
+    n_cols = plot_specs.n_cols if hasattr(plot_specs, "n_cols") else 10
+    n_rows = int(np.ceil(n / n_cols))
+
+    f3, axes = plt.subplots(n_rows, n_cols, figsize=(n_cols * 4, n_rows * 3))
+
+    # flattenで1次元化してアクセスしやすく
+    axes = axes.flatten()
+
+    min_list = []
+
+    for grid in range(n):
+        cell_ = cell[:, grid]
+
+        xs, ys, cell_prepared = env_class.get_node_positions(cells=cell_, _plot_specs=plot_specs, _mask=mask)
+        cell_prepared = cell_prepared[:xs.shape[0]]
+        widd = int(np.max(xs) - np.min(xs)) + 1
+        g_map = cell_prepared.reshape(1, widd)
+
+        ax = axes[grid]
+        x_vals = np.arange(widd)
+        y_vals = g_map.flatten()
+        ax.bar(x_vals, y_vals, color='black')
+        #ax.set_ylabel("Firing rate")
+        ax.set_title(f"Cell {grid}")
+
+        # 平滑化した実線
+        y_smooth = gaussian_filter1d(y_vals, sigma=2)
+        ax.plot(x_vals, y_smooth, color='blue', linewidth=2)
+
+        # 局所極小値を検出
+        minima_idx = argrelextrema(y_smooth, np.less)[0]
+        ax.scatter(x_vals[minima_idx], y_smooth[minima_idx], color='red', zorder=5, label='Minima')
+        #if grid==4:
+           # print("DDDDDDDDDDDDD", minima_idx)
+        min_list.append(minima_idx)
+
+
+    # 不要な残りのaxesを非表示に（cell数 < n_rows*n_cols の場合）
+    for i in range(n, len(axes)):
+        f3.delaxes(axes[i])
+
+    # 余白を調整：ここが確実に効く！
+    f3.subplots_adjust(
+        hspace=1.0,  # 上下間隔
+        wspace=0.8   # 左右間隔
+    )
+    f3.savefig((path + name) + "f_sm2.png")
+    #plt.show()
     plt.close('all')
+
+    return min_list
 
 
 def get_data_path(run, date, save_dirs, recent, index=None):
@@ -233,6 +295,15 @@ def get_data(save_dirs, run, date, recent=-1, index=None, smoothing=0, n_envs_sa
     #print("save_path",save_path,os.path.dirname(save_path))
     # If files for a training iteration come in iter_[index] directories, the params file is in the parent directory
     params_path = os.path.dirname(save_path)
+    #params_path = path.normpath(save_path).split(path.sep)
+    #params_path_append = '/' if params_path[0] != '..' else ''
+    #print("str(params_path[-1])",str(params_path[-6:-1]))
+    #print("
+    #params_path = params_path_append + path.join(*params_path[:-1]) if 'iter_' in str(params_path[-1]) else save_path
+    #params_path = save_path#path.join(params_path[:-6]) if 'iter_' in str(params_path[-6:-1]) else save_path
+    #params_path = path.join(*params_path[:-1]) 
+    #print("params_path",params_path)
+    # Load run parameters
     params = load_numpy_gz(params_path + '/params.npy').item()
     #print("params",params)
     params = DotDict(params)
@@ -261,9 +332,15 @@ def get_data(save_dirs, run, date, recent=-1, index=None, smoothing=0, n_envs_sa
 
     # Timeseries are numpy arrays of shape [environments (or batch size), cells, timesteps]
     g_timeseries = load_numpy_gz(save_path + '/gs_timeseries_' + index + '.npy')
+    gen_timeseries = load_numpy_gz(save_path + '/gens_timeseries_' + index + '.npy')
     g_pred2_timeseries = np.roll(np.copy(g_timeseries), -1)
     p_timeseries = load_numpy_gz(save_path + '/ps_timeseries_' + index + '.npy')
-    #print("PPPPPPPPPPP", p_timeseries.shape)
+    dg_timeseries = load_numpy_gz(save_path + '/dgs_timeseries_' + index + '.npy')
+    ca3_timeseries = load_numpy_gz(save_path + '/ca3s_timeseries_' + index + '.npy')
+    ca3_spike_timeseries = load_numpy_gz(save_path + '/ca3_spikes_timeseries_' + index + '.npy')
+    ca1_timeseries = load_numpy_gz(save_path + '/ca1_spikes_timeseries_' + index + '.npy')
+    g_spike_timeseries = load_numpy_gz(save_path + '/g_spikes_timeseries_' + index + '.npy')
+    g2g_spike_timeseries = load_numpy_gz(save_path + '/g2g_spikes_timeseries_' + index + '.npy')
     pos_timeseries = load_numpy_gz(save_path + '/pos_timeseries_' + index + '.npy')
     x_timeseries = load_numpy_gz(save_path + '/xs_timeseries_' + index + '.npy')
     x_gt_timeseries = load_numpy_gz(save_path + '/xs_gt_timeseries_' + index + '.npy')
@@ -287,17 +364,58 @@ def get_data(save_dirs, run, date, recent=-1, index=None, smoothing=0, n_envs_sa
     np.set_printoptions(0)
     to_right_ind = []
     to_left_ind = []
+    #for j in range(pos_timeseries.shape[1]):
+    #    if j > 0:
+    #        if pos_timeseries[2,j] - pos_timeseries[2,j-1] > 2:
+    #            to_right_ind.append(j)
+   #         else:
+    #            to_left_ind.append(j)
+    #g_timeseries = np.delete(g_timeseries, to_left_ind, axis=2)
+    #pos_timeseries = np.delete(pos_timeseries, to_left_ind, axis=1)
     print("g_timeseries",g_timeseries.shape)
-    print("pos_timeseries",pos_timeseries.shape)
+    print("ca1_timeseries",ca1_timeseries.shape)
+    N, T = g_timeseries.shape[1], g_timeseries.shape[2]
+    pos = pos_timeseries[0]  # (T,)
+
+    # forward / backward の判定用 (diff)
+    diff = np.diff(pos, prepend=pos[0])  # (T,)
+
+    # forward / backward のマスク
+    forward_mask = diff > 0   # (T,)
+    backward_mask = diff < 0  # (T,)
+
+    # 元の g_timeseries をコピーして forward/backward を生成
+    g_forward = g_timeseries.copy()
+    g_backward = g_timeseries.copy()
+    g2g_forward = gen_timeseries.copy()
+    g2g_backward = gen_timeseries.copy()
+
+    # forward のとき以外はゼロに
+    g_forward[:, :, ~forward_mask] = 0
+    # backward のとき以外はゼロに
+    g_backward[:, :, ~backward_mask] = 0
+    g2g_forward[:, :, ~forward_mask] = 0
+    g2g_backward[:, :, ~backward_mask] = 0
 
     # These are 'real' ratemaps: cell activity during walk
     #print("envs",envs)
     x_all = rate_map_from_timeseries(x_timeseries, pos_timeseries, params, smoothing=smoothing, envs=envs)
     #print("x_all",len(x_all))
-    g_all = rate_map_from_timeseries(g_timeseries, pos_timeseries, params, smoothing=smoothing, envs=envs)
-    print("g_all2",np.array(g_all).shape)
+    g_all = rate_map_from_timeseries(g_forward, pos_timeseries, params, smoothing=smoothing, envs=envs)
+    g_b_all = rate_map_from_timeseries(g_backward, pos_timeseries, params, smoothing=smoothing, envs=envs)
+    
+    gen_b_all = rate_map_from_timeseries(g2g_backward, pos_timeseries, params, smoothing=smoothing, envs=envs)
+
+    gen_all = rate_map_from_timeseries(g2g_forward, pos_timeseries, params, smoothing=smoothing, envs=envs)
+    #gen_all = rate_map_from_timeseries(gen_timeseries, pos_timeseries, params, smoothing=smoothing, envs=envs)
     g_pred2_all = rate_map_from_timeseries(g_pred2_timeseries, pos_timeseries, params, smoothing=smoothing, envs=envs)
     p_all = rate_map_from_timeseries(p_timeseries, pos_timeseries, params, smoothing=smoothing, envs=envs)
+    dg_all = rate_map_from_timeseries(dg_timeseries, pos_timeseries, params, smoothing=smoothing, envs=envs)
+    ca3_all = rate_map_from_timeseries(ca3_timeseries, pos_timeseries, params, smoothing=smoothing, envs=envs)
+    ca1_all = ca1_timeseries#rate_map_from_timeseries(ca1_timeseries, pos_timeseries, params, smoothing=smoothing, envs=envs)
+    ca3_spike_all = ca3_spike_timeseries
+    g_spike_all = g_spike_timeseries
+    g2g_spike_all = g2g_spike_timeseries
     # These are more like histograms, but can use the same rate-map machinery
     x_gt_timeseries = np.mean(x_gt_timeseries,axis=-1)
     correct_timeseries = np.expand_dims(np.argmax(x_gt_timeseries, axis=1) == np.argmax(x_timeseries, axis=1),
@@ -309,14 +427,32 @@ def get_data(save_dirs, run, date, recent=-1, index=None, smoothing=0, n_envs_sa
     print('Successfully reconstructed rate maps from timeseries')
 
     g_all = np.nan_to_num(g_all)
+    g_b_all = np.nan_to_num(g_b_all)
+    gen_all = np.nan_to_num(gen_all)
+    gen_b_all = np.nan_to_num(gen_b_all)
     g_pred2_all = np.nan_to_num(g_pred2_all)
     p_all = np.nan_to_num(p_all)
+    dg_all = np.nan_to_num(dg_all)
+    ca3_all = np.nan_to_num(ca3_all)
+    ca1_all = np.nan_to_num(ca1_all)
+    g_spike_all = np.nan_to_num(g_spike_all)
+    ca3_spike_all = np.nan_to_num(ca3_spike_all)
+    g2g_spike_all = np.nan_to_num(g2g_spike_all)
 
     data = DotDict({
         'x': x_all,
         'g': g_all,
+        'g_b': g_b_all,
+        'gen': gen_all,
+        'gen_b': gen_b_all,
         'g_pred2': g_pred2_all,
         'p': p_all,
+        'dg': dg_all,
+        'ca3': ca3_all,
+        'ca3_spike': ca3_spike_all,
+        'ca1_spike': ca1_all,
+        'g_spike': g_spike_all,
+        'g2g_spike': g2g_spike_all,
         'acc_to': acc_s_t_to,
         'acc_from': acc_s_t_from,
         'positions': positions,
