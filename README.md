@@ -2,4 +2,8 @@
 
 python 3.8.5
 
-python run_tem.py & python plot_results.py
+# Running models
+python run_tem.py
+
+# Plot
+python plot_results.py
