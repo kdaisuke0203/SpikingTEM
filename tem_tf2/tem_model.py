@@ -16,6 +16,8 @@ class SimpleSNN(tf.keras.Model):
         if nn_type == 'sensory':
             self.fc1 = SpikingDense0(par, output_size=output_size,name='MLP_c_spike_1')
             #self.fc2 = SpikingDense(input_size=hidden_size, output_size=output_size,name='MLP_c_spike_2')
+        if nn_type == 'sensory2':
+            self.fc1 = SpikingDense0(par, output_size=output_size,name='MLP_c_spike_2')
         if nn_type == 'p2g':
             self.fc1 = SpikingDense0(par, output_size=output_size,name='p2g_spike_1')
         if nn_type == 'x2p':
@@ -25,16 +27,16 @@ class SimpleSNN(tf.keras.Model):
             #self.fc1 = SpikingDense(par, output_size=output_size,name='x2p_spike_1')
             self.fc1 = SpikingDense0(par, output_size=output_size,name='x2dg_spike_1')
         if nn_type == 'g2g':
-            self.fc1 = SpikingDense(par, output_size=output_size,name='g2g_spike_1')
+            self.fc1 = SpikingDense0(par, output_size=output_size,name='g2g_spike_1')
             #self.fc2 = SpikingDense(input_size=hidden_size, output_size=output_size,name='g2g_spike_2')
         if nn_type == 'infer_p':
-            self.fc1 = SpikingDense(par, output_size=output_size,name='infer_p_spike_1')
+            self.fc1 = SpikingDense0(par, output_size=output_size,name='infer_p_spike_1')
         if nn_type == 'dg':
             self.fc1 = SpikingDense0(par, output_size=output_size,name='dg_spike_1')
         if nn_type == 'dg2':
             self.fc1 = SpikingDense0(par, output_size=output_size,name='dg_spike_2')
         if nn_type == 'ca3':
-            self.fc1 = SpikingDense(par, output_size=output_size,name='ca3_spike_1')
+            self.fc1 = SpikingDense0(par, output_size=output_size,name='ca3_spike_1')
         if nn_type == 'infer_g':
             self.fc1 = SpikingDense(par, output_size=output_size,name='infer_g_spike_1')
         if nn_type == 'x2lec':
@@ -48,10 +50,8 @@ class SimpleSNN(tf.keras.Model):
             self.fc1 = SpikingDense0(par,  output_size=output_size,name='gen_p_spike_1')
 
     def call(self, inputs):
-        x, v = inputs  # 入力を unpack
-        #print("XXXXXXXXXXXVVVVVVVVVVVV",x,v)
+        x, v = inputs  
         h, v1 = self.fc1((x, v))    # v: 初期電位
-        #print("HHHHHHHHHHHHH",h)
         #o, v2 = self.fc2((h, v1))   # v1: 中間層の膜電位
         return h, v1 
 
@@ -81,17 +81,17 @@ class TEM(tf.keras.Model):
                         name='gamma_' + str(f)) for f in range(self.par.n_freq)]
         # Entorhinal preference weights
         #self.w_x = tf.Variable(1.0, dtype=self.precision, trainable=True, name='w_x')
-        #self.p_p = tf.Variable(1.0, dtype=self.precision, trainable=True, name='p_p')
-        #self.p2g = tf.Variable(1.0, dtype=self.precision, trainable=True, name='p2g')
-        #self.g_g = tf.Variable(0.1, dtype=self.precision, trainable=True, name='g_g')
+        self.p_p = tf.Variable(1.0, dtype=self.precision, trainable=True, name='p_p')
+        self.p2g = tf.Variable(1.0, dtype=self.precision, trainable=True, name='p2g')
+        self.g_g = tf.Variable(0.1, dtype=self.precision, trainable=True, name='g_g')
         self.g_spike = tf.Variable(1.0, dtype=self.precision, trainable=True, name='g_spike')
-        #self.ca3_spike = tf.Variable(1.0, dtype=self.precision, trainable=True, name='ca3_spike')
+        self.ca3_spike = tf.Variable(1.0, dtype=self.precision, trainable=True, name='ca3_spike')
         #self.ca1_spike = tf.Variable(1.0, dtype=self.precision, trainable=True, name='ca1_spike')
-        #self.stdp_spike = tf.Variable(1.0, dtype=self.precision, trainable=True, name='stdp_spike')
+        self.stdp_spike = tf.Variable(1.0, dtype=self.precision, trainable=True, name='stdp_spike')
         #self.x2g_spike = tf.Variable(1.0, dtype=self.precision, trainable=True, name='x2g_spike')
         #self.x2dg_spike = tf.Variable(1.0, dtype=self.precision, trainable=True, name='x2dg_spike')
-        #self.g2_spike = tf.Variable(1.0, dtype=self.precision, trainable=True, name='g2_spike')
-        #self.g3_spike = tf.Variable(1.0, dtype=self.precision, trainable=True, name='g2_spike')
+        self.g2_spike = tf.Variable(1.0, dtype=self.precision, trainable=True, name='g2_spike')
+        self.g3_spike = tf.Variable(1.0, dtype=self.precision, trainable=True, name='g2_spike')
         #self.g2ca3_spike = tf.Variable(1.0, dtype=self.precision, trainable=True, name='g2ca3_spike')
         self.g2g_spike = tf.Variable(1.0, dtype=self.precision, trainable=True, name='g2g_spike')
         self.gen_p_spike = tf.Variable(1.0, dtype=self.precision, trainable=True, name='gen_p_spike')
@@ -101,7 +101,7 @@ class TEM(tf.keras.Model):
         #self.p_gt_spike = tf.Variable(1.0, dtype=self.precision, trainable=True, name='p_gt_spike')
         #self.g2p_spike = tf.Variable(1.0, dtype=self.precision, trainable=True, name='g2p_spike')
         #self.x_spike = tf.Variable(1.0, dtype=self.precision, trainable=True, name='x_spike')
-        #self.fx_spike = tf.Variable(1.0, dtype=self.precision, trainable=True, name='fx_spike')
+        self.fx_spike = tf.Variable(1.0, dtype=self.precision, trainable=True, name='fx_spike')
         #self.fx2_spike = tf.Variable(1.0, dtype=self.precision, trainable=True, name='fx2_spike')        
         # Entorhinal preference bias
         #self.b_x = tf.Variable(tf.zeros_initializer()(shape=self.par.s_size_comp, dtype=self.precision), trainable=True, name='bias_x')
@@ -139,62 +139,62 @@ class TEM(tf.keras.Model):
         )"""
         self.v_p2g = self.add_weight(
             #shape=(1, self.par.g_size * self.par.k),
-            shape=(self.par['batch_size'], self.par.g_size),
+            shape=(1, self.par.g_size),
             initializer='zeros',
             trainable=False,
             name='v_p2g_state'
         )
         self.v_p2g_gen = self.add_weight(
             #shape=(1, self.par['g_size'] * self.par['k']),
-            shape=(self.par['batch_size'], self.par['g_size']),
+            shape=(1, self.par['g_size']),
             initializer='zeros',
             trainable=False,
             name='v_p2g_gen_state'
         )
         self.v_p_g_gen = self.add_weight(
             #shape=(1, self.par['g_size'] * self.par['k']),
-            shape=(self.par['batch_size'], self.par['g_size']),
+            shape=(1, self.par['g_size']),
             initializer='zeros',
             trainable=False,
             name='v_p_g_gen_state'
         )
         self.v_g2x_gen = self.add_weight(
             #shape=(1, self.par['g_size'] * self.par['k']),
-            shape=(self.par['batch_size'], self.par['g_size']),
+            shape=(1, self.par['g_size']),
             initializer='zeros',
             trainable=False,
             name='v_g2x_gen_state'
         )
         self.v_gt2x_gen = self.add_weight(
             #shape=(1, self.par['g_size'] * self.par['k']),
-            shape=(self.par['batch_size'], self.par['g_size']),
+            shape=(1, self.par['g_size']),
             initializer='zeros',
             trainable=False,
             name='v_gt2x_gen_state'
         )
         self.v_p2gt_gen = self.add_weight(
             #shape=(1, self.par['g_size'] * self.par['k']),
-            shape=(self.par['batch_size'], self.par['g_size']),
+            shape=(1, self.par['g_size']),
             initializer='zeros',
             trainable=False,
             name='v_p2gt_gen_state'
         )
         self.v_x2lec = self.add_weight(
-            shape=(self.par['batch_size'], self.par['g_size']),
+            shape=(1, self.par['g_size']),
             #shape=(1, self.par['p_size'] * self.par['k']),
             initializer='zeros',
             trainable=False,
             name='v_x2lec_state'
         )
         self.v_x2p = self.add_weight(
-            shape=(self.par['batch_size'], self.par['p_size']),
+            shape=(1, self.par['p_size']),
             #shape=(1, self.par['p_size'] * self.par['k']),
             initializer='zeros',
             trainable=False,
             name='v_x2p_state'
         )
         self.v_x2dg = self.add_weight(
-            shape=(self.par['batch_size'], self.par['g_size']),
+            shape=(1, self.par['g_size']),
             #shape=(1, self.par['p_size'] * self.par['k']),
             initializer='zeros',
             trainable=False,
@@ -202,72 +202,72 @@ class TEM(tf.keras.Model):
         )
         self.v_infer_p = self.add_weight(
             #shape=(1, self.par['p_size'] * self.par['k']),
-            shape=(self.par['batch_size'], self.par['p_size']),
+            shape=(1, self.par['p_size']),
             initializer='zeros',
             trainable=False,
             name='v_infer_p_state'
         )
         self.v_infer_g2 = self.add_weight(
             #shape=(1, self.par['p_size'] * self.par['k']),
-            shape=(self.par['batch_size'], self.par['g_size']),
+            shape=(1, self.par['g_size']*self.par['k']),
             initializer='zeros',
             trainable=False,
             name='v_infer_g_state'
         )
         self.v_gen_p2 = self.add_weight(
-            shape=(self.par['batch_size'], self.par['p_size']),
+            shape=(1, self.par['p_size']),
             initializer='zeros',
             trainable=False,
             name='v_gen_p2_state'
         )
         self.v_gen_p = self.add_weight(
-            shape=(self.par['batch_size'], self.par['p_size']),
+            shape=(1, self.par['p_size']),
             initializer='zeros',
             trainable=False,
             name='v_gen_p_state'
         )
         self.v_g2g = self.add_weight(
             #shape=(1, self.par['g_size'] * self.par['k']),
-            shape=(self.par['batch_size'], self.par['g_size']),
+            shape=(1, self.par['g_size']),
             initializer='zeros',
             trainable=False,
             name='v_g2g_state'
         )
         self.v_dg = self.add_weight(
             #shape=(1, self.par['p_size'] * self.par['k']),
-            shape=(self.par['batch_size'], self.par['dg_size']),
+            shape=(1, self.par['dg_size']),
             initializer='zeros',
             trainable=False,
             name='v_dg_state'
         )
         self.v_dg2 = self.add_weight(
             #shape=(1, self.par['p_size'] * self.par['k']),
-            shape=(self.par['batch_size'], self.par['dg_size']),
+            shape=(1, self.par['dg_size']),
             initializer='zeros',
             trainable=False,
             name='v_dg3_state'
         )
         self.v_ca3 = self.add_weight(
             #shape=(1, self.par['p_size'] * self.par['k']),
-            shape=(self.par['batch_size'], self.par['p_size']),
+            shape=(1, self.par['p_size']),
             initializer='zeros',
             trainable=False,
             name='v_ca3_state'
         )
         self.v_fx = self.add_weight(
-            shape=(self.par['batch_size'], self.par.s_size),
+            shape=(1, self.par.s_size),
             initializer='zeros',
             trainable=False,
             name='v_fx_state'
         )
         self.v_fx_pg = self.add_weight(
-            shape=(self.par['batch_size'], self.par.s_size),
+            shape=(1, self.par.s_size),
             initializer='zeros',
             trainable=False,
             name='v_fxpg_state'
         )
         self.v_fx_pgt = self.add_weight(
-            shape=(self.par['batch_size'], self.par.s_size),
+            shape=(1, self.par.s_size),
             initializer='zeros',
             trainable=False,
             name='v_fxpgt_state'
@@ -364,6 +364,7 @@ class TEM(tf.keras.Model):
                                                      name='MLP_c_star_1')])"""
         #self.MLP_c_star_spiking = Transition_Model(self.par, 'sensory_star')
         self.MLP_c_star_spiking2 = SimpleSNN(self.par,self.par.s_size,time_steps=1, nn_type='sensory')
+        self.MLP_c_star_spiking3 = SimpleSNN(self.par,self.par.s_size,time_steps=1, nn_type='sensory2')
 
     @model_utils.define_scope
     def call(self, inputs, training=None, mask=None):
@@ -390,13 +391,10 @@ class TEM(tf.keras.Model):
 
         # Now do full hebbian matrices update after BPTT truncation
         hebb_mat, hebb_mat_inv = inputs.hebb_mat, inputs.hebb_mat_inv #self.final_hebbian(inputs.hebb_mat, inputs.hebb_mat_inv, memories_dict)
-        #print("################")
 
         # convert tensorarray to list
         variable_dict = self.tensorarray_2_list(variable_dict)
         variable_dict['weights']['gamma'] = self.gamma
-        #print("variable_dict",variable_dict)
-        #print("hebb_mat",hebb_mat)
 
         # Collate x_s, g for re-input to model
         re_input_dict = model_utils.DotDict({'a_rnn': hebb_mat,
@@ -425,7 +423,6 @@ class TEM(tf.keras.Model):
         # infer hippocampus (p) and entorhinal (g)
         #mem_inf = self.mem_step(memories_dict, 'inf', i + mem_offset)
         g, p, x_s, p_x, p_spike, dg_all, ca3_all, g_spike, x2p_spike, dg_all2= self.inference(g_gen, inputs.x[i], inputs.x_two_hot[i], x_t, inputs.d[i], g2g_spike, ca3_prev, p2g_prev, g_t_spike, inputs.positions[i])
-        #tf.print("i",i,"g11111", g[0], summarize=-1)
         # generate sensory
         #mem_gen = self.mem_step(memories_dict, 'gen', i + mem_offset)
         x_all, x_logits_all, p_g, p_gt_spike, p2g_all = self.generation(p, g_spike, g_gen, p_spike, g2g_spike, x2p_spike)
@@ -512,10 +509,10 @@ class TEM(tf.keras.Model):
         #p_g_spike = tf.transpose(mu_all2, perm=[1, 2, 0]) 
         #p_g = tf.reduce_mean(p_g_spike, axis=2)
 
-        if self.par['stdp']:
+        """if self.par['stdp']:
             p_gt_spike = self.lif_stdp_output(p_gt_spike, self.stdp_W)
             p_gt_spike = tf.expand_dims(p_gt_spike, axis=0)
-            p_gt = tf.reduce_mean(p_gt_spike, axis=2)
+            p_gt = tf.reduce_mean(p_gt_spike, axis=2)"""
         x_gt, x_gt_logits, _ = self.f_x(p_gt_spike, "p_gt")
 
         #p_g = p_gt #self.gen_p(g, memories)
@@ -530,6 +527,17 @@ class TEM(tf.keras.Model):
 
         return x, x_logits, p_gt, p_gt_spike, p2g_all
 
+    
+    def random_select_k(self, x):
+        k = self.par['k']
+        shape = tf.shape(x)
+        n = shape[1] // k
+
+        x = tf.reshape(x, (shape[0], n, k, shape[2]))
+        idx = tf.random.uniform((shape[0], n), 0, k, dtype=tf.int32)
+
+        return tf.gather(x, idx, batch_dims=2)
+    
     @model_utils.define_scope
     def infer_g(self, g_gen, mu_x2p, x, g2g_spike, x2g_spike, p2g_prev, g_t_spike):
 
@@ -563,21 +571,22 @@ class TEM(tf.keras.Model):
         for i in range(self.spike_step):
             #o, v = self.infer_g_spiking2((g_spike_[:,:,i], v))
             #o, v = self.infer_g_spiking2((tf.concat([g2g_spike*self.g_spike, x2g_spike*self.g2_spike, g_t_spike*self.g3_spike], axis=1)[:,:,i], v))
-            o, v = self.infer_g_spiking2((tf.concat([g2g_spike, x2g_spike, p2g_prev], axis=1)[:,:,i], v))
+            #o, v = self.infer_g_spiking2((tf.concat([g2g_spike, x2g_spike, p2g_prev], axis=1)[:,:,i], v))
+            #o, v = self.infer_g_spiking2((tf.concat([g2g_spike, p2g_prev], axis=1)[:,:,i], v))
             #o, v = self.infer_g_spiking2((tf.concat([g2g_spike, x2g_spike*self.x2g_spike, g_t_spike], axis=1)[:,:,i], v))
             #o, v = self.infer_g_spiking2((tf.concat([g2g_spike, p2g_all], axis=1)[:,:,i], v))
-            #o, v = self.infer_g_spiking2((tf.concat([g2g_spike, x_spike], axis=1)[:,:,i], v))
+            o, v = self.infer_g_spiking2((tf.concat([g2g_spike, x2g_spike], axis=1)[:,:,i], v))
             #o, v = self.infer_g_spiking2((tf.concat([g2g_spike, g_spike_], axis=1)[:,:,i], v))
             #o = g2g_spike[:,:,i] + self.p_p*p2g_all[:,:,i]
             #v_sum.append(tf.where(o == 1, tf.ones_like(v)*self.par['thr'], v))
             #v_sum.append(tf.where(o == 1, tf.ones_like(v), tf.zeros_like(v)))
-            mu_all2 = mu_all2.write(i, o*self.g_spike)
+            mu_all2 = mu_all2.write(i, o)
             #v_all2 = v_all2.write(i, tf.where(o == 1, tf.ones_like(v)*1.0, v))
-        #tf.print("GGG",self.g2_spike,self.g3_spike)
         self.v_infer_g2.assign(v)
         mu_all2 = mu_all2.stack()  # shape: (spike_step, batch_size, p_size)
         #v_all2 = v_all2.stack()
-        g_spike = tf.transpose(mu_all2, perm=[1, 2, 0])
+        g_spike = tf.transpose(mu_all2, perm=[1, 2, 0])*self.g_spike
+        g_spike = self.random_select_k(g_spike)
         #v_sum= tf.transpose(v_all2, perm=[1, 2, 0]) 
         #g_spike = tf.reshape(g_spike, (self.par['g_size'],self.par['k'], self.spike_step))
         #v_sum = tf.reshape(v_sum, (self.par['g_size'],self.par['k'], self.spike_step))
@@ -650,7 +659,7 @@ class TEM(tf.keras.Model):
                 dg_all[:,:,i],
                 #dg_all2[:,:,i],
                 #x2p_all[:,:,i],
-                x2dg_all [:,:,i],#*self.ca3_spike,
+                #x2dg_all [:,:,i],#*self.ca3_spike,
                 ca3_prev[:,:,i]
             ], axis=1)
             o, v = self.ca3_spiking((ca3_input, v))
@@ -1018,7 +1027,7 @@ class TEM(tf.keras.Model):
             for i in range(self.spike_step):
                 #o, v = self.MLP_c_star_spiking2((x_logits_[:,:,i], v))
                 #o, v = self.MLP_c_star_spiking2((p[:,:,i], v))
-                o, v = self.MLP_c_star_spiking2((p2g_all[:,:,i], v))
+                o, v = self.MLP_c_star_spiking3((p2g_all[:,:,i], v))
                 #v_ = tf.where(o > 0, tf.ones_like(v)*2.0, v)
                 o_sum += o / self.spike_step
             self.v_fx_pgt.assign(v)
@@ -1039,8 +1048,8 @@ class TEM(tf.keras.Model):
         #tf.print("OOOOOOOOOOs",o_sum,summarize=-1)
         #tf.print("random_index",random_index, summarize=-1)
         #o_sum = tf.reshape(o_sum[random_index], (1, 15))
-        x_logits = o_sum#spike_Bernoulli
-        x = o_sum#spike_Bernoulli
+        x_logits = o_sum*self.fx_spike#spike_Bernoulli
+        x = o_sum#spike_Bernoull
         #######################################################3
         
         #tf.print("XXXXXXXXXXxx",x,summarize=-1)
@@ -1342,7 +1351,7 @@ def compute_losses(model_inputs, data, trainable_variables, par):
         lg_ = 1*model_utils.squared_error(data.g.g[i], data.g.g_gen[i])
         #lg_ = model_utils.squared_error(data.g_prev[i], data.g2g_spike[i])
 
-        lg_reg_ = 0#1*tf.reduce_sum(data.g.g_gen[i] ** 2, axis=1)#+1*tf.reduce_sum(data.g.g[i] ** 2, axis=1)#1*model_utils.squared_error(data.g.g[i], data.g.g_2d[i])
+        lg_reg_ = 1*tf.reduce_sum(data.g.g_gen[i] ** 2, axis=1)+1*tf.reduce_sum(data.g.g[i] ** 2, axis=1)#1*model_utils.squared_error(data.g.g[i], data.g.g_2d[i])
 
         lp_reg_ = 1*tf.reduce_sum(tf.abs(data.p.p_g[i]), axis=1) + 1*tf.reduce_sum(tf.abs(data.p.p[i]), axis=1) + 1*tf.reduce_sum(tf.abs(data.p.dg[i]), axis=1) + 0*tf.reduce_sum(tf.abs(data.p.ca3[i]), axis=1)
 
@@ -1352,10 +1361,10 @@ def compute_losses(model_inputs, data, trainable_variables, par):
         # normalise for bptt sequence length
         norm = 1.0 / (batch_vis * par.seq_len)
 
-        lx_p += tf.reduce_sum(lx_p_ * s_vis * x_mult) * norm
+        lx_p += tf.reduce_sum(lx_p_ * s_vis * x_mult) * norm 
         lx_g += tf.reduce_sum(lx_g_ * s_vis * x_mult) * norm
         lx_gt += tf.reduce_sum(lx_gt_ * s_vis * x_mult) * norm
-        lp += tf.reduce_sum(lp_ * s_vis) * scalings.temp * norm
+        lp += tf.reduce_sum(lp_ * s_vis) * scalings.temp * norm * scalings.p_cell_reg 
         lg += tf.reduce_sum(lg_ * s_vis) * scalings.temp * norm
         lp_x += tf.reduce_sum(lp_x_ * s_vis) * scalings.p2g_use * scalings.temp * norm
 
